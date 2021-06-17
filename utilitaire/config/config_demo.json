@@ -1,0 +1,74 @@
+{
+    "sftp" : 
+    [
+        {
+            "server" : "ATLASANTE SFTP INPUT",
+            "username" : "ftp_sivaccin_lecture",
+            "password" : "****",
+            "host" : "www.atlasante.fr"
+        },
+        {
+            "server" : "ATLASANTE SFTP DEPOT",
+            "username" : "sftp_rdvvaccins_ars",
+            "password" : "****",
+            "host" : "www.atlasante.fr"
+        },
+        {
+            "server" : "ATLASANTE RAPPROCHEMENT",
+            "username" : "ftp_import_rdv",
+            "password" : "****",
+            "host" : "www.atlasante.fr"
+        }
+    ],
+    "postgresql_db":
+    [
+        {
+            "server" : "LOCAL SERVER",
+            "username" : "postgres",
+            "password" : "pwd",
+            "host" : "localhost"
+        }
+    ],
+    "data_gouv" :
+    [
+        {
+            "api" : "DATA DEMO",
+            "url" : "https://demo.data.gouv.fr/api/1",
+            "api_key" : "****",
+            "dataset_id" : "****",
+            "ressource_id" :{
+                "prise-rdv-national" : "****",
+                "prise-rdv-reg" : "****",
+                "prise-rdv-dep" : "****",
+                "prise-rdv-centre" : "****"
+            }
+        }
+    ],
+    "atlasante" :
+    [
+        {
+            "ressource" : "alloc",
+            "url" : "http://www.atlasante.fr/upload/covid_vaccin_allocation.csv"
+        }
+    ],
+    "parametrage" :
+    [
+        {
+            "domaine" : "agenda",
+            "treshold_control" : "0.001", 
+            "operateurs" : ["maiia","keldoc","doctolib"],
+            "log" : "log/agenda/err_agenda_log.log",
+            "borne_publication_opendata" : "5"
+        },
+        {
+            "domaine" : "stock",
+            "dic_ratio_ucd" : {
+                "Pfizer" : "5",
+                "AstraZeneca" : "10",
+                "Moderna" : "10"
+            },
+            "log" : "log/stock/err_stock_log.log"
+        }
+    ]
+
+}

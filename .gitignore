@@ -1,0 +1,14 @@
+*.ipynb
+Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+main_TU.py
+.vscode
+*.csv
+*.zip
+*.gzip
+*.log
+*.gz
+*.xlsx
+notebooks/

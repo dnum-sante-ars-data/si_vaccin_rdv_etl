@@ -1,0 +1,3 @@
+*.json
+*.pub
+!config_demo.json
