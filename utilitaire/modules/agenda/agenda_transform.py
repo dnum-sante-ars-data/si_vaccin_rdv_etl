@@ -305,6 +305,7 @@ def norm_agenda(df_in, operateur="maiia") :
     # motif_rdv
     df_ret["motif_rdv"].fillna("NR",inplace=True)
     # rang vaccinal
+    df_ret.loc[df_ret["rang_vaccinal"] == "R", "rang_vaccinal"] = "3"
     df_ret.loc[~df_ret["rang_vaccinal"].isin(["1","2","3","4","5"]), "rang_vaccinal"] = "NR"
     df_ret["rang_vaccinal"].fillna("NR",inplace=True)
     # type vaccin
