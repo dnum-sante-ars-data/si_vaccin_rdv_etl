@@ -1,7 +1,7 @@
 import json
 import pandas as pd
 from datetime import datetime, timedelta, date
-from os import walk, path
+from os import walk
 import re
 import logging
 from tqdm import tqdm
@@ -55,8 +55,8 @@ def get_agenda_op_loc(operateur, date=datetime.today().strftime("%Y-%m-%d"), ver
         raise FileNotFoundError
     return("data/agenda/" + str(operateur) + "/" + file_name_ret)
 
-# chargement par chunck des csv recuperes sur le serveur sftp en fonction de l editeur
-def load_agenda_op(operateur, size=1000000, date=datetime.today().strftime("%Y-%m-%d"), verbose=True) :
+# chargement en local des csv recuperes sur le serveur sftp en fonction de l editeur
+def load_agenda_op(operateur, date=datetime.today().strftime("%Y-%m-%d"), verbose=True) :
     # chemin défini génériquement
     path_in = get_agenda_op_loc(operateur, date=date, verbose=verbose)
     if verbose :
@@ -66,21 +66,20 @@ def load_agenda_op(operateur, size=1000000, date=datetime.today().strftime("%Y-%
             "date_creation","date_rdv","id_centre","nom_centre","cp_centre",
             "motif_rdv","rang_vaccinal","parcours_rdv",
             "annee_naissance","honore","annule"]
-        reader = pd.read_csv(path_in,
+        df_ret = pd.read_csv(path_in,
         sep=",",encoding="utf-8",
         usecols= columns_maiia,
-        dtype =str,
-        chunksize=size)
+        dtype =str)
+        df_ret["type_vaccin"] = "NR"
     elif operateur == "keldoc" :
         columns_keldoc = [
             "date_creation","date_rdv","id_centre","nom_centre","cp_centre",
             "motif_rdv","rang_vaccinal","parcours_rdv",
             "annee_naissance","honore","annule","type_vaccin"]
-        reader = pd.read_csv(path_in,
+        df_ret = pd.read_csv(path_in,
         sep=";",encoding="utf-8",
         usecols= columns_keldoc,
-        dtype=str,
-        chunksize=size)
+        dtype=str)
     elif operateur == "doctolib" :
         columns = pd.read_csv(path_in, 
                         dtype=str,encoding="utf-8", sep=",", nrows=0).columns.tolist()
@@ -93,17 +92,19 @@ def load_agenda_op(operateur, size=1000000, date=datetime.today().strftime("%Y-%
             columns_doctolib = [
             "date_creation","date_rdv","id_centre","nom_centre","cp_centre", "rang_vaccinal","parcours_rdv",
             "honore","annule","type_vaccin"]
-        reader = pd.read_csv(path_in,
+        df_ret = pd.read_csv(path_in,
         sep=",",encoding="utf-8",
         usecols=columns_doctolib, 
-        dtype=str,
-        chunksize=size)
+        dtype=str)
+        df_ret["annee_naissance"] = "NR"
+        if not ("motif_rdv" in columns) : 
+            df_ret["motif_rdv"] = "NR"
     else :
         raise ValueError
     if verbose :
         print(" - - - Fichier " + path_in + " charge avec succes.")
     logging.info(path_in + " charge en tant que fichier source operateur.")
-    return reader
+    return df_ret
 
 # charge l agenda concatene
 def load_agenda_raw(date=datetime.today().strftime("%Y-%m-%d"), verbose=True) :
@@ -121,7 +122,6 @@ def load_agenda_raw(date=datetime.today().strftime("%Y-%m-%d"), verbose=True) :
         print(" - - - Fichier " + path_in + " charge avec succes.")
     logging.info(path_in + " charge.")
     return df_ret
-
 
 #
 # FILTRAGE LIGNES
@@ -155,16 +155,10 @@ def control_cp(cp_in) :
         return False
 
 # Filtre le format des inputs operateurs
-def filter_err_agenda(df_in, operateur="maiia", treshold_control="0.0001", path_log_err="log/agenda/err_agenda_log.log", data_err={},verbose=True) :
+def filter_err_agenda(df_in, operateur="maiia", treshold_control="0.0001", path_log_err="log/agenda/err_agenda_log.log",verbose=True) :
     treshold_control = float(treshold_control)
     # initialisation
-    df_ret = df_in
-    if operateur == "maiia" :
-        df_ret["type_vaccin"] = "NR"
-    elif operateur == "doctolib" :
-        df_ret["annee_naissance"] = "NR"
-        if not ("motif_rdv" in list(df_ret.columns)) : 
-            df_ret["motif_rdv"] = "NR"
+    df_ret = df_in.copy()
     count_err = 0
     tot_row = len(df_in)
     if verbose :
@@ -226,32 +220,24 @@ def filter_err_agenda(df_in, operateur="maiia", treshold_control="0.0001", path_
         df_ret = df_ret[filter_cp]
         count_err += len(df_err)
     # enregistrement dans le csv de log
-    if data_err == {} :
-        data_err = {"date_traitement": [datetime.today().strftime('%Y-%m-%d %H:%M:%S')],
-                "operateur": operateur, 
-                "tot_row": tot_row,
-                "err_row": count_err}
-    else :
-        # incrémente les erreurs
-        data_err["tot_row"] = data_err["tot_row"] + tot_row
-        data_err["err_row"] = data_err["err_row"] + count_err
-    return df_ret, data_err
-
-# enregistre les erreurs rencontrées
-def save_data_err(data_err) :
+    data_err = {"date_traitement": [datetime.today().strftime('%Y-%m-%d %H:%M:%S')],
+                "operateur": [operateur], 
+                "tot_row": [tot_row],
+                "err_row": [count_err]}
     df_err_log = pd.DataFrame.from_dict(data_err)
     try :
-        if path.isfile("log/agenda/rapport_err_agenda.csv"):
-            df_err_log.to_csv("log/agenda/rapport_err_agenda.csv", 
-                index=False, na_rep="",sep=";",encoding="utf-8",
-                mode="a",header=False)
-        else :
-            df_err_log.to_csv("log/agenda/rapport_err_agenda.csv", 
-                index=False, na_rep="",sep=";",encoding="utf-8",
-                mode="w",header=True)
+        df_err_log.to_csv("log/agenda/rapport_err_agenda.csv", sep=";", mode='a', header=False, index=False)
     except :
         print("- - Erreur : enregistrement dans log/agenda/rapport_err_agenda.csv en echec.")
-    return
+    # calcul treshold
+    if (count_err/tot_row) > treshold_control :
+        # dataframe vide
+        df_ret = df_ret.iloc[0:0,:].copy()
+        print(" - - - " + operateur + " invalide : trop de lignes en erreur.")
+    else:
+        if verbose :
+            print(" - - - Filtrage sur " + operateur + " effectue. Lignes en erreur retirees.")
+    return df_ret
 
 # filtrage des lignes erreurs dans le flux entrant
 
@@ -284,7 +270,6 @@ def norm_agenda(df_in, operateur="maiia") :
         print(" - - - Erreur : Type operateur agenda inconnu : " + str(operateur))
         raise ValueError
     df_ret = df_in.copy()
-    del(df_in)
     # normalisation annule/honnore
     df_ret["honore"].fillna("NR",inplace=True)
     df_ret["annule"].fillna("NR",inplace=True)
@@ -305,7 +290,12 @@ def norm_agenda(df_in, operateur="maiia") :
     # motif_rdv
     df_ret["motif_rdv"].fillna("NR",inplace=True)
     # rang vaccinal
-    df_ret.loc[~df_ret["rang_vaccinal"].isin(["1","2","3","4","5","R"]), "rang_vaccinal"] = "NR"
+    # RG specifique pour doctolib
+    # 2021/10/08 Mise à jour de la RG
+    df_ret.loc[df_ret["rang_vaccinal"] == "R", "rang_vaccinal"] = "3"
+    df_ret.loc[df_ret["rang_vaccinal"].str.contains("3"), "rang_vaccinal"] = "3"
+    df_ret.loc[df_ret["rang_vaccinal"].str.contains("4"), "rang_vaccinal"] = "4"
+    df_ret.loc[~df_ret["rang_vaccinal"].isin(["1","2","3","4","5","6"]), "rang_vaccinal"] = "NR"
     df_ret["rang_vaccinal"].fillna("NR",inplace=True)
     # type vaccin
     df_ret["type_vaccin"].fillna("NR",inplace=True)
@@ -332,7 +322,6 @@ def norm_agenda(df_in, operateur="maiia") :
         logging.info("Attention : certains rdv sont positionnés après 2022 pour " + str(operateur))
         logging.warning("Attention : certains rdv sont positionnés après 2022 pour " + str(operateur))
     # correction sur les CP des centres
-    print(" - - - Normalisation code postal pour " + str(operateur) + " ...")
     df_ret.loc[df_ret["cp_centre"].notnull(),"cp_centre"] = df_ret.loc[df_ret["cp_centre"].notnull(),"cp_centre"].apply(lambda x : format_cp_centre(str(x)))
     #
     # operation specifique selon les operateurs
@@ -380,7 +369,6 @@ def norm_agenda(df_in, operateur="maiia") :
             (df_ret["cp_centre"].fillna(0).apply(lambda x : int(str(x).split(" ")[0])) <= 20999),"code_departement"] = "2B"
      #
     # operation generique post traitement operateur
-    print(" - - - Code Postal normalisé")
     # prise de rdv
     df_ret["motif_rdv"].fillna("NR",inplace=True)
     # affectation du boolean rdv_cnam
@@ -397,10 +385,9 @@ def norm_agenda(df_in, operateur="maiia") :
         left_on="reg", right_on="reg")
     df_ret.rename(columns={"libelle3": "region","reg" : "code_region"},inplace=True)
     #
-    df_ret.loc[df_ret["code_departement"] == "2A","code_region"] = "94"
-    df_ret.loc[df_ret["code_departement"] == "2B","code_region"] = "94"
-    df_ret.loc[df_ret["code_departement"] == "2A","region"] = "COR"
-    df_ret.loc[df_ret["code_departement"] == "2B","region"] = "COR"
+    df_ret.loc[df_ret["code_departement"].isin(["2A","2B"]),"code_region"] = "94"
+    df_ret.loc[df_ret["code_departement"].isin(["2A","2B"]),"region"] = "COR"
+    
     # reordonnonancement des colonnes
     df_ret = df_ret[["date_creation","date_rdv",
         "id_centre","nom_centre","cp_centre",
@@ -579,18 +566,6 @@ def save_agenda(df_in, folder = "data/agenda/", date=datetime.today().strftime("
     logging.info(path_out + " enregistre.")
     if verbose :
         print(" - - - Enregistrement de " + path_out + " termine.")
-    return
-
-def save_append_agenda(df_in, folder = "data/agenda/", date=datetime.today().strftime("%Y-%m-%d"),  postfix="-raw") :
-    path_out = folder + date + " - prise_rdv" + str(postfix) + ".csv"
-    if path.isfile(path_out):
-        df_in.to_csv(path_out, 
-            index=False, na_rep="",sep=",",encoding="utf-8",
-            mode="a",header=False)
-    else :
-        df_in.to_csv(path_out, 
-            index=False, na_rep="",sep=",",encoding="utf-8",
-            mode="w",header=True)
     return
 
 def save_agenda_gzip(df_in, folder = "data/agenda/", date=datetime.today().strftime("%Y-%m-%d"),  postfix="-raw", verbose=True) :
