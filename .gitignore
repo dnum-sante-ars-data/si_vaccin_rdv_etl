@@ -13,3 +13,5 @@ main_TU.py
 *.xlsx
 notebooks/
 env/
+!departement2019.csv
+!region2019.csv
