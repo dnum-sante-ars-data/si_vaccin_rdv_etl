@@ -12,3 +12,4 @@ main_TU.py
 *.gz
 *.xlsx
 notebooks/
+env/
