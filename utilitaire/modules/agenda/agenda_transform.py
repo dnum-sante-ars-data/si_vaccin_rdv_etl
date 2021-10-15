@@ -307,8 +307,8 @@ def norm_agenda(df_in, operateur="maiia") :
     # rang vaccinal
     # 2021/10/08 Mise à jour de la RG
     df_ret.loc[df_ret["rang_vaccinal"] == "R", "rang_vaccinal"] = "3"
-    df_ret.loc[df_ret["rang_vaccinal"].str.contains("3"), "rang_vaccinal"] = "3"
-    df_ret.loc[df_ret["rang_vaccinal"].str.contains("4"), "rang_vaccinal"] = "4"
+    df_ret.loc[df_ret["rang_vaccinal"].str.contains("3", na=False), "rang_vaccinal"] = "3"
+    df_ret.loc[df_ret["rang_vaccinal"].str.contains("4", na=False), "rang_vaccinal"] = "4"
     df_ret.loc[~df_ret["rang_vaccinal"].isin(["1","2","3","4","5","6"]), "rang_vaccinal"] = "NR"
     df_ret["rang_vaccinal"].fillna("NR",inplace=True)
     # type vaccin
