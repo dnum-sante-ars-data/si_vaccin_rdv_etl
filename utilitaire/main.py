@@ -39,6 +39,8 @@ def __main__(args) :
             control_agenda(date= args.date, verbose=args.verbose)
         elif args.commande == "publish_sftp_ars" :
             publish_agenda_sftp_ars(date= args.date, config=args.config, verbose=args.verbose)
+        elif args.commande == "publish_ftplib_sftp_ars":
+            publish_agenda_ftplib_sftp_ars(date=args.date, config=args.config, verbose=args.verbose)
         elif args.commande == "publish_sftp_alloc" :
             publish_agenda_sftp_alloc(date= args.date, config=args.config, verbose=args.verbose)
         elif args.commande == "publish_opendata" :
@@ -207,6 +209,42 @@ def publish_agenda_sftp_ars(date = datetime.today().strftime("%Y-%m-%d"), config
         })
     publi_region = publi_region
     route_sftp.publish_agenda_sftp(server_out_sftp, *publi_region, date=date, verbose=verbose)
+    return
+
+def publish_agenda_ftplib_sftp_ars(date = datetime.today().strftime("%Y-%m-%d"), config="config/config.json", verbose=True):
+    server_out_sftp = route_sftp.read_config_sftp(config,"ATLASANTE SFTP DEPOT")
+    # publication du fichier brut + doublon publié sans la date dans le prefixe
+    publi_alloc = [{
+        "path_local" : "data/agenda/" + date + " - prise_rdv-raw.csv.gz",
+        "path_sftp" : date + " - prise_rdv-raw.csv.gz"
+        },
+        {
+        "path_local" : "data/agenda/" + date + " - prise_rdv-raw.csv",
+        "path_sftp" : date + " - prise_rdv-raw.csv"
+        }]
+    route_sftp.publish_agenda_ftplib_sftp(server_out_sftp, *publi_alloc, date=date, verbose=verbose)
+    # publication du fichier ARS
+    publi_alloc = [
+        {
+        "path_local" : "data/agenda/" + date + " - prise_rdv.csv",
+        "path_sftp" : date + " - prise_rdv.csv"
+        },
+        {
+        "path_local" : "data/agenda/" + date + " - prise_rdv.xlsx",
+        "path_sftp" : date + " - prise_rdv.xlsx"
+        }]
+    route_sftp.publish_agenda_ftplib_sftp(server_out_sftp, *publi_alloc, date=date, verbose=verbose)
+    # publication des fichiers ARS
+    L_region = ['HDF', 'ARA', 'IDF', 'GUY', 'OCC', 'NAQ', 'GES', 'PAC', 'COR',
+        'BRE', 'GDP', 'BFC', 'MAR', 'REU', 'NOR', 'CVL', 'PDL']
+    publi_region = []
+    for region in L_region :
+        publi_region.append({
+            "path_local" : "data/agenda/ars/" + date + " - prise_rdv_" + region + ".csv",
+            "path_sftp" : "prise_rdv_" + region + ".csv"
+        })
+    publi_region = publi_region
+    route_sftp.publish_agenda_sftp(server_out_sftp, *publi_region, date=date, verbose=verbose)    
     return
 
 def publish_agenda_sftp_alloc(date = datetime.today().strftime("%Y-%m-%d"), config="config/config.json", verbose=True) :

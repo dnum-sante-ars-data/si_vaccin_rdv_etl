@@ -10,6 +10,13 @@ import logging
 import subprocess
 import wget
 
+import os
+from tqdm import tqdm
+from glob import glob
+import ftplib
+from progressbar import AnimatedMarker, Bar, BouncingBar, Counter, ETA, AdaptiveETA, FileTransferSpeed, FormatLabel, Percentage, ProgressBar, ReverseBar, RotatingMarker, SimpleProgress, Timer, UnknownLength
+
+
 #
 # FONCTION GENERIQUE
 #
@@ -263,6 +270,27 @@ def publish_agenda_sftp(server_out_config, *l_publication, date=datetime.today()
             post_file(sftp, path_local,path_sftp, verbose=verbose)
     return
 
+global sftp
+
+def publish_agenda_ftplib_sftp(server_out_config, *l_publication, date=datetime.today().strftime("%Y-%m-%d"), verbose=True) :
+    print('--- Lancement de la publication via ftplib')
+    host = server_out_config["host"]
+    username = server_out_config["username"]
+    password = server_out_config["password"]
+    sftp = ftplib.FTP(host, username, password)
+    for publi in list(l_publication) :
+        # publication du fichier brut
+        path_local = publi["path_local"]
+        size_path_local = os.path.getsize(path_local)
+        path_sftp = publi["path_sftp"]
+        file_to_transfer = open(path_local, 'rb')
+        with tqdm(unit = 'blocks', unit_scale = True, leave = True, miniters = 1, desc = 'Uploading......', total = size_local_file) as tqdm_instance:
+            sftp.storbinary('STOR ' + path_sftp, file_to_transfer, 2048, callback = lambda sent: tqdm_instance.update(len(sent)))
+            file_to_transfer.close()
+        sftp.quit()
+        sftp = None
+        print(' - Publication exécutée')
+        return
 
 def clean_agenda_sftp(server_out_config,*l_path_sftp, verbose=True) :
     host = server_out_config["host"]
