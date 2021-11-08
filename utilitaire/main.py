@@ -29,6 +29,8 @@ def __main__(args) :
     if args.domaine == "agenda" :
         if args.commande == "import" :
             import_agenda_sftp(date= args.date, config=args.config, verbose=args.verbose)
+        elif args.commande == "import_wget":
+            import_wget_agenda_sftp(date=args.date, config=args.config, verbose=args.verbose)
         elif args.commande == "process" :
             generate_agenda_raw(date= args.date, verbose=args.verbose)
         elif args.commande == "process_OD" :
@@ -89,6 +91,13 @@ def import_agenda_sftp(date= datetime.today().strftime("%Y-%m-%d"), config="conf
     server_in_sftp = route_sftp.read_config_sftp(config,"ATLASANTE SFTP INPUT")
     for operateur in ["maiia","keldoc","doctolib"] :
         route_sftp.save_agenda_op_sftp(operateur, server_in_sftp, date=date, verbose=verbose)
+    return
+    
+def import_wget_agenda_sftp(date=datetime.today().strftime("%Y-%m-%d"), config="config.config.json", verbose=True) :
+    # recuperation des agenda sur le serveur sftp distant
+    server_in_sftp = route_sftp.read_config_sftp(config,"ATLASANTE SFTP INPUT")
+    for operateur in ["maiia","keldoc","doctolib"] :
+        route_sftp.save_wget_agenda_op_sftp(operateur, server_in_sftp, date=date, verbose=verbose)
     return
 
 def generate_agenda_raw(date = datetime.today().strftime("%Y-%m-%d"), config="config/config.json", verbose=True) :

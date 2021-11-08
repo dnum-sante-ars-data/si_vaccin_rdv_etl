@@ -7,6 +7,9 @@ from datetime import date
 import os.path
 import logging
 
+import subprocess
+import wget
+
 #
 # FONCTION GENERIQUE
 #
@@ -166,6 +169,46 @@ def save_agenda_op_sftp(operateur, server_in_config, date=datetime.today().strft
             get_file(sftp, path_sftp, path_local, verbose)
     return
 
+# telechargement complet via wget
+
+def import_wget_agenda_sftp(operateur, server_in_config, date=datetime.today().strftime("%Y-%m-%d"), verbose=True):
+    print('--- Lancement de la commande wget')
+    if operateur not in ["maiia", "doctolib", "keldoc"] :
+        print(" - - - Erreur : Type operateur agenda inconnu : " + str(operateur))
+        raise ValueError
+    #sftp_host = sftp_host
+    host = server_in_config["host"]
+    username = server_in_config["username"]
+    password = server_in_config["password"]
+    # config pour ne pas checker de clé existante
+    cnopts = pysftp.CnOpts()
+    cnopts.hostkeys = None 
+# localisation du fichier a recuperer sur le serveur sftp
+    with pysftp.Connection(host=host, username=username, password=password, port =2222, cnopts=cnopts) as sftp:
+        file_name_sftp = get_agenda_op_sftp(sftp, operateur, date=date, verbose=verbose)
+        dst = "/"
+        if operateur == "maiia" :
+            path_sftp = "maiia/" + file_name_sftp
+            path_local = "data/agenda/"+str(operateur) + "/" + file_name_sftp
+            #filepath = "doctolib/2021-11-03-doctolib-rdv.csv"
+            cmd = 'wget --directory-prefix='+dst+' --user="'+username+'" --password="'+password+'"  ftp://'+host+'/'+path_sftp+' --progress=bar'
+            subprocess.run(cmd, shell=True)
+            print(' - Commande "'+cmd+'" exécutée')
+            # dezippage des fichier maiia
+            dezip_op("data/agenda/"+str(operateur), file_name_sftp, verbose)
+        elif operateur == "keldoc" :
+            path_sftp = "nehs/" + file_name_sftp
+            path_local = "data/agenda/"+str(operateur) + "/" + file_name_sftp
+            cmd = 'wget --directory-prefix='+dst+' --user="'+username+'" --password="'+password+'"  ftp://'+host+'/'+path_sftp+' --progress=bar'
+            subprocess.run(cmd, shell=True)
+            print(' - Commande "'+cmd+'" exécutée')
+        if operateur == "doctolib" :
+            path_sftp = "doctolib/" + file_name_sftp
+            path_local = "data/agenda/"+str(operateur) + "/" + file_name_sftp
+            cmd = 'wget --directory-prefix='+dst+' --user="'+username+'" --password="'+password+'"  ftp://'+host+'/'+path_sftp+' --progress=bar'
+            subprocess.run(cmd, shell=True)
+            print(' - Commande "'+cmd+'" exécutée')
+    return
 
 # publication sur le serveur sftp ARS
 
