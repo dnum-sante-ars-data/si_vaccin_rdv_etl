@@ -5,6 +5,8 @@ from os import walk, path
 import re
 import logging
 from tqdm import tqdm
+import dask
+import dask.dataframe as dd
 
 #
 # LECTURE CONFIG
@@ -121,6 +123,23 @@ def load_agenda_raw(date=datetime.today().strftime("%Y-%m-%d"), verbose=True) :
         print(" - - - Fichier " + path_in + " charge avec succes.")
     logging.info(path_in + " charge.")
     return df_ret
+
+# charge l'agenda concatene avec adaptation pour la VM centos
+def load_agenda_raw_vm(date=datetime.today().strftime("%Y-%m-%d"), verbose=True) :
+    path_in = "data/agenda/" + date + " - prise_rdv-raw.csv"
+    dd_ret = dd.read_csv(path_in,
+        sep=",",
+        usecols=[
+            "date_creation", "date_rdv", "id_centre", "nom_centre", "cp_centre",
+            "code_departement", "code_region", "region", "motif_rdv",
+            "rang_vaccinal", "parcours_rdv", "annee_naissance", "honore", "annule",
+            "operateur","type_vaccin","rdv_cnam"],
+        dtype=str ,encoding="utf-8")
+    dd_ret["date_rdv"] = dd.to_datetime(dd_ret["date_rdv"], format='%Y-%m-%d', errors='raise')
+    if verbose :
+        print(" - - - Fichier " + path_in + " charge avec succes.")
+    logging.info(path_in + " charge.")
+    return dd_ret
 
 
 #
@@ -572,6 +591,89 @@ def aggregate(df_in, date_init="", date=datetime.today().strftime("%Y-%m-%d"), d
     print(df_ret_national)
     return df_ret_centre, df_ret_dep, df_ret_reg, df_ret_national, df_ret_centre_ars
 
+#fonctions pour aggrégations adaptées pour la vm centos
+def nb_rdv_cnam(row):
+    if row["rdv_cnam"] == "true":
+        return 1
+    return 0
+
+#aggregations adaptées pour la vm centos
+def aggregate_vm(df_in, date_init="", date=datetime.today().strftime("%Y-%m-%d"), duree = 4, verbose=True) :
+    # param input
+    duree = int(duree)
+    if date_init == "" :
+        date_init = datetime(2021, 1, 18)
+    date = datetime.strptime(date,"%Y-%m-%d")
+    logging.info("Date de filtrage pour l'opendata : " + str(date))
+    logging.info("Duree de filtrage : " + str(duree))
+    df_ret = df_in.copy()
+    # filtrage rdv réel
+    df_ret = df_ret[df_ret["honore"] != "false"]
+    df_ret = df_ret[df_ret["annule"] != "true"]
+    df_ret["nb"] = "1"
+    # pre agrégation
+    logging.info("Debut agregation")
+    if verbose :
+        print(" - - - Agrégation à la maille centre ...")
+    """
+    df_ret = df_ret.groupby(["date_rdv", "id_centre","nom_centre","cp_centre",
+        "code_departement", "code_region","region",
+        "motif_rdv","rang_vaccinal", "operateur","type_vaccin"], 
+        as_index=False)["nb"].count()
+    """
+    df_ret["nb"] = df_ret["cp_centre"]
+    df_ret["nb_rdv_cnam"] = df_ret.apply(lambda row: nb_rdv_cnam(row), axis=1, meta=int)
+    df_ret = df_ret.groupby(["date_rdv", "id_centre","nom_centre","cp_centre",
+        "code_departement", "code_region","region","rang_vaccinal", "operateur","type_vaccin"]).agg({
+            "nb":"count",
+            "nb_rdv_cnam":"sum"}).reset_index()
+    if verbose :
+        print(" - - - Agrégation à la maille centre terminee")
+        print(" - - - Agrégation détaillées ...")
+    # aggregation ARS
+    df_ret_centre_ars = df_ret.groupby(["code_region", "region", "code_departement", "id_centre", "nom_centre", "rang_vaccinal", "date_rdv","type_vaccin"]).agg({
+            "nb": "sum",
+            "nb_rdv_cnam": "sum"}).reset_index()
+    # pre filtre sur date pour opendata
+    if date.weekday() != 4 :
+        print(" - - - Attention, les donnees de la semaine ne sont pas toutes remontees")
+    df_ret = df_ret[
+        (df_ret["date_rdv"] >= date_init - timedelta(days=date_init.weekday())) &
+        (df_ret["date_rdv"] <= date - timedelta(days=date.weekday()) + timedelta(days=duree*7 -1)) ]
+    df_ret["date_debut_semaine"] = df_ret["date_rdv"].apply(lambda x : (x - timedelta(days=x.weekday())).strftime("%Y-%m-%d"))
+    df_ret = df_ret[df_ret["rang_vaccinal"] != "NR"]
+    #agg par centre pour opendata et ARS
+    df_ret_centre = df_ret.groupby(["code_region", "region", "code_departement", 
+        "id_centre", "nom_centre", "rang_vaccinal", "date_debut_semaine"]).agg({   
+        "nb": "sum",
+        "nb_rdv_cnam": "sum"}).reset_index()
+    #agg par departement
+    df_ret_dep = df_ret.groupby(["code_region", "region", "code_departement", "rang_vaccinal", "date_debut_semaine"])["nb"].sum().reset_index()
+    #agg par region
+    df_ret_reg = df_ret.groupby(["code_region", "region", "rang_vaccinal", "date_debut_semaine"])["nb"].sum().reset_index()
+    # national
+    df_ret_national = df_ret.groupby(["rang_vaccinal", "date_debut_semaine"])["nb"].sum().reset_index()
+    # remise en forme
+    df_ret_centre_ars = df_ret_centre_ars.rename(columns={"code_departement" : "departement"})
+    df_ret_centre = df_ret_centre.rename(columns={"code_departement" : "departement"})
+    df_ret_dep = df_ret_dep.rename(columns={"code_departement" : "departement"})
+    df_ret_centre = df_ret_centre[["code_region", "region", "departement", "id_centre", "nom_centre", "rang_vaccinal", "date_debut_semaine", "nb", "nb_rdv_cnam"]]
+    df_ret_centre_ars = df_ret_centre_ars[["code_region", "region", "departement", "id_centre", "nom_centre", "rang_vaccinal","type_vaccin","date_rdv", "nb", "nb_rdv_cnam"]]
+    df_ret_dep = df_ret_dep[["code_region", "region", "departement", "rang_vaccinal", "date_debut_semaine", "nb"]]
+    df_ret_reg = df_ret_reg[["code_region", "region", "rang_vaccinal", "date_debut_semaine", "nb"]]
+    df_ret_national = df_ret_national[["rang_vaccinal", "date_debut_semaine", "nb"]]
+    # tri
+    df_ret_centre.sort_values(by=["region","nom_centre","departement","date_debut_semaine","rang_vaccinal"])
+    df_ret_dep.sort_values(by=["departement","region","date_debut_semaine","rang_vaccinal"])
+    df_ret_reg.sort_values(by=["region","date_debut_semaine","rang_vaccinal"])
+    df_ret_national.sort_values(by=["date_debut_semaine", "rang_vaccinal"])
+    #logs et affichage de controle
+    logging.info("Aggregation des fichiers reussie.")
+    print(" - - - Aggrégation des fichiers réussie. Résumé : ")
+    print(df_ret_national)
+    return df_ret_centre, df_ret_dep, df_ret_reg, df_ret_national, df_ret_centre_ars
+
+
 #
 # SAUVEGARDE
 #
@@ -580,6 +682,16 @@ def save_agenda(df_in, folder = "data/agenda/", date=datetime.today().strftime("
     path_out = folder + date + " - prise_rdv" + str(postfix) + ".csv"
     df_in.to_csv(path_out, 
     index=False, na_rep="",sep=",",encoding="utf-8")
+    logging.info(path_out + " enregistre.")
+    if verbose :
+        print(" - - - Enregistrement de " + path_out + " termine.")
+    return
+
+def save_agenda_vm(df_in, folder = "data/agenda/", date=datetime.today().strftime("%Y-%m-%d"),  postfix="-raw", verbose=True) :
+    path_out = folder + date + " - prise_rdv" + str(postfix) + ".csv"
+    #df_in = df_in.compute()
+    df_in.to_csv(path_out,
+    index=False, na_rep="",sep=",",encoding="utf-8",mode="a")
     logging.info(path_out + " enregistre.")
     if verbose :
         print(" - - - Enregistrement de " + path_out + " termine.")
@@ -606,9 +718,29 @@ def save_agenda_gzip(df_in, folder = "data/agenda/", date=datetime.today().strft
         print(" - - - Enregistrement de " + path_out + " termine.")
     return
 
+def save_agenda_gzip_vm(df_in, folder = "data/agenda/", date=datetime.today().strftime("%Y-%m-%d"),  postfix="-raw", verbose=True) :
+    path_out = folder + date + " - prise_rdv" + str(postfix) + ".csv.gz"
+    #df_in = df_in.compute()
+    df_in.to_csv(path_out,
+    index=False, na_rep="",sep=",",encoding="utf-8", compression="gzip", mode="a")
+    logging.info(path_out + " enregistre.")
+    if verbose :
+        print(" - - - Enregistrement de " + path_out + " termine.")
+    return
+
 def save_agenda_xlsx(df_in, folder = "data/agenda/", date=datetime.today().strftime("%Y-%m-%d"),  postfix="-raw", verbose=True) :
     path_out = folder + date + " - prise_rdv" + str(postfix) + ".xlsx"
     df_in.to_excel(path_out, 
+    index=False,sheet_name=(date + " - prise_rdv" + str(postfix)), na_rep="",encoding="utf-8")
+    logging.info(path_out + " enregistre.")
+    if verbose :
+        print(" - - - Enregistrement de " + path_out + " termine.")
+    return
+
+def save_agenda_xlsx_vm(df_in, folder = "data/agenda/", date=datetime.today().strftime("%Y-%m-%d"),  postfix="-raw", verbose=True) :
+    path_out = folder + date + " - prise_rdv" + str(postfix) + ".xlsx"
+    df_in = df_in.compute()
+    df_in.to_excel(path_out,
     index=False,sheet_name=(date + " - prise_rdv" + str(postfix)), na_rep="",encoding="utf-8")
     logging.info(path_out + " enregistre.")
     if verbose :

@@ -284,7 +284,7 @@ def publish_agenda_ftplib_sftp(server_out_config, *l_publication, date=datetime.
         size_path_local = os.path.getsize(path_local)
         path_sftp = publi["path_sftp"]
         file_to_transfer = open(path_local, 'rb')
-        with tqdm(unit = 'blocks', unit_scale = True, leave = True, miniters = 1, desc = 'Uploading......', total = size_local_file) as tqdm_instance:
+        with tqdm(unit = 'blocks', unit_scale = True, leave = True, miniters = 1, desc = 'Uploading......', total = size_path_local) as tqdm_instance:
             sftp.storbinary('STOR ' + path_sftp, file_to_transfer, 2048, callback = lambda sent: tqdm_instance.update(len(sent)))
             file_to_transfer.close()
         sftp.quit()
