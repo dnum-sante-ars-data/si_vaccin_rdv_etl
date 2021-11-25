@@ -76,6 +76,24 @@ def post_file(sftp, path_local, path_sftp, verbose=True) :
             + str(path_sftp))
     return
 
+def post_file_ftplib(sftp, path_local, size_path_local, path_sftp, file_to_transfer, verbose=True):
+    with tqdm(unit = 'blocks', unit_scale = True, leave = True, miniters = 1, desc = 'Uploading......', total = size_path_local) as tqdm_instance:
+        sftp.storbinary('STOR ' + path_sftp, file_to_transfer, 2048, callback = lambda sent: tqdm_instance.update(len(sent)))
+        file_to_transfer.close()
+    sftp.abort()
+    sftp.quit()
+    sftp = None
+    if verbose :
+        print(" - - - Transfert de fichier réussi depuis "
+            + str(path_local)
+            + " vers sftp://"
+            + str(path_sftp))
+    logging.info("Transfert de fichier réussi depuis "
+        + str(path_local)
+        + " vers sftp://"
+        + str(path_sftp))
+    return
+
 def delete_file(sftp, path_sftp, verbose=True) :
     sftp.cwd("")
     if sftp.lexists(path_sftp) == True :
@@ -270,27 +288,21 @@ def publish_agenda_sftp(server_out_config, *l_publication, date=datetime.today()
             post_file(sftp, path_local,path_sftp, verbose=verbose)
     return
 
-global sftp
-
-def publish_agenda_ftplib_sftp(server_out_config, *l_publication, date=datetime.today().strftime("%Y-%m-%d"), verbose=True) :
+def publish_agenda_ftplib_sftp_1_file(server_out_config,path_local, path_sftp, date=datetime.today().strftime("%Y-%m-%d"), verbose=True) :
     print('--- Lancement de la publication via ftplib')
+    global sftp
     host = server_out_config["host"]
     username = server_out_config["username"]
     password = server_out_config["password"]
     sftp = ftplib.FTP(host, username, password)
-    for publi in list(l_publication) :
-        # publication du fichier brut
-        path_local = publi["path_local"]
-        size_path_local = os.path.getsize(path_local)
-        path_sftp = publi["path_sftp"]
-        file_to_transfer = open(path_local, 'rb')
-        with tqdm(unit = 'blocks', unit_scale = True, leave = True, miniters = 1, desc = 'Uploading......', total = size_path_local) as tqdm_instance:
-            sftp.storbinary('STOR ' + path_sftp, file_to_transfer, 2048, callback = lambda sent: tqdm_instance.update(len(sent)))
-            file_to_transfer.close()
-        sftp.quit()
-        sftp = None
-        print(' - Publication exécutée')
-        return
+    path_local = path_local
+    size_path_local = os.path.getsize(path_local)
+    path_sftp = path_sftp
+    file_to_transfer = open(path_local, 'rb')
+    post_file_ftplib(sftp, path_local, size_path_local, path_sftp, file_to_transfer, verbose=verbose)
+    #sftp.quit()
+    #sftp = None
+    return
 
 def clean_agenda_sftp(server_out_config,*l_path_sftp, verbose=True) :
     host = server_out_config["host"]

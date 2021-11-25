@@ -168,25 +168,25 @@ def generate_OD_VM(date = datetime.today().strftime("%Y-%m-%d"), config="config/
     df_agenda_op = agenda.load_agenda_raw_vm(date=date, verbose=verbose)
     agenda.save_agenda_gzip_vm(df_agenda_op, folder = "data/agenda/", date=date, postfix="-raw")
     # creation des JDD OPENDATA et ARS
-    #if verbose :
-    #    print(" - - Enregistrement des fichiers opendata ...")
-    #df_centre, df_dep, df_reg, df_national, df_centre_ars = agenda.aggregate_vm(df_agenda_op, date_init= datetime(2021, 1, 18), date=date, duree = param["borne_publication_opendata"], verbose=verbose)
+    if verbose :
+        print(" - - Enregistrement des fichiers opendata ...")
+    df_centre, df_dep, df_reg, df_national, df_centre_ars = agenda.aggregate_vm(df_agenda_op, date_init= datetime(2021, 1, 18), date=date, duree = param["borne_publication_opendata"], verbose=verbose)
     # sauvegarde ARS
-    #if verbose :
-    #    print(" - - Enregistrement des fichiers ARS ...")
-    #L_region = ['HDF', 'ARA', 'IDF', 'GUY', 'OCC', 'NAQ', 'GES', 'PAC', 'COR',
-    #   'BRE', 'GDP', 'BFC', 'MAR', 'REU', 'NOR', 'CVL', 'PDL']
-    #for region in L_region :
-    #    df_agenda_reg = agenda.filter_raw_reg(df_centre_ars, region)
-        #agenda.save_agenda_vm(df_agenda_reg, folder = "data/agenda/ars/", date=date, postfix=("_"+str(region)))
-    #sauvegarde opendata
-    #agenda.save_agenda_vm(df_centre, folder = "data/agenda/opendata/", date=date, postfix="_par_centre")
-    #agenda.save_agenda_vm(df_dep, folder = "data/agenda/opendata/", date=date, postfix="_par_dep")
-    #agenda.save_agenda_vm(df_reg, folder = "data/agenda/opendata/", date=date, postfix="_par_reg")
-    #agenda.save_agenda_vm(df_national, folder = "data/agenda/opendata/", date=date, postfix="_national")
+    if verbose :
+        print(" - - Enregistrement des fichiers ARS ...")
+    L_region = ['HDF', 'ARA', 'IDF', 'GUY', 'OCC', 'NAQ', 'GES', 'PAC', 'COR',
+       'BRE', 'GDP', 'BFC', 'MAR', 'REU', 'NOR', 'CVL', 'PDL']
+    for region in L_region :
+        df_agenda_reg = agenda.filter_raw_reg(df_centre_ars, region)
+        agenda.save_agenda_vm(df_agenda_reg, folder = "data/agenda/ars/", date=date, postfix=("_"+str(region)))
+    # sauvegarde opendata
+    agenda.save_agenda_vm(df_centre, folder = "data/agenda/opendata/", date=date, postfix="_par_centre")
+    agenda.save_agenda_vm(df_dep, folder = "data/agenda/opendata/", date=date, postfix="_par_dep")
+    agenda.save_agenda_vm(df_reg, folder = "data/agenda/opendata/", date=date, postfix="_par_reg")
+    agenda.save_agenda_vm(df_national, folder = "data/agenda/opendata/", date=date, postfix="_national")
     # sauvegarde ars
-    #agenda.save_agenda_vm(df_centre_ars, folder = "data/agenda/", date=date, postfix="")
-    #agenda.save_agenda_xlsx_vm(df_centre_ars, folder = "data/agenda/", date=date, postfix="")
+    agenda.save_agenda_vm(df_centre_ars, folder = "data/agenda/", date=date, postfix="")
+    agenda.save_agenda_xlsx_vm(df_centre_ars, folder = "data/agenda/", date=date, postfix="")
     return
 
 
@@ -244,27 +244,18 @@ def publish_agenda_sftp_ars(date = datetime.today().strftime("%Y-%m-%d"), config
 
 def publish_agenda_ftplib_sftp_ars(date = datetime.today().strftime("%Y-%m-%d"), config="config/config.json", verbose=True):
     server_out_sftp = route_sftp.read_config_sftp(config,"ATLASANTE SFTP DEPOT")
-    # publication du fichier brut + doublon publié sans la date dans le prefixe
-    publi_alloc = [{
-        "path_local" : "data/agenda/" + date + " - prise_rdv-raw.csv.gz",
-        "path_sftp" : "test/" + date + " - prise_rdv-raw.csv.gz"
-        },
-        {
-        "path_local" : "data/agenda/" + date + " - prise_rdv-raw.csv",
-        "path_sftp" : "test/" +  date + " - prise_rdv-raw.csv"
-        }]
-    route_sftp.publish_agenda_ftplib_sftp(server_out_sftp, *publi_alloc, date=date, verbose=verbose)
-    # publication du fichier ARS
-    publi_alloc = [
-        {
-        "path_local" : "data/agenda/" + date + " - prise_rdv.csv",
-        "path_sftp" : "test/" + date + " - prise_rdv.csv"
-        },
-        {
-        "path_local" : "data/agenda/" + date + " - prise_rdv.xlsx",
-        "path_sftp" : "test/" + date + " - prise_rdv.xlsx"
-        }]
-    route_sftp.publish_agenda_ftplib_sftp(server_out_sftp, *publi_alloc, date=date, verbose=verbose)
+    #path_local = "data/agenda/" + date + " - prise_rdv-raw.csv.gz"
+    #path_sftp = "test/" + date + " - prise_rdv-raw.csv.gz"
+    #route_sftp.publish_agenda_ftplib_sftp_1_file(server_out_sftp, path_local, path_sftp, date=date, verbose=verbose)
+    #path_local = "data/agenda/" + date + " - prise_rdv.xlsx"
+    #path_sftp = "test/" + date + " - prise_rdv.xlsx"
+    #route_sftp.publish_agenda_ftplib_sftp_1_file(server_out_sftp, path_local, path_sftp, date=date, verbose=verbose)
+    #path_local = "data/agenda/" + date + " - prise_rdv.csv"
+    #path_sftp = "test/" + date + " - prise_rdv.csv"
+    #route_sftp.publish_agenda_ftplib_sftp_1_file(server_out_sftp, path_local, path_sftp, date=date, verbose=verbose)
+    path_local = "data/agenda/" + date + " - prise_rdv-raw.csv"
+    path_sftp = "test/" + date + " - prise_rdv-raw.csv"
+    route_sftp.publish_agenda_ftplib_sftp_1_file(server_out_sftp, path_local, path_sftp, date=date, verbose=verbose)
     # publication des fichiers ARS
     L_region = ['HDF', 'ARA', 'IDF', 'GUY', 'OCC', 'NAQ', 'GES', 'PAC', 'COR',
         'BRE', 'GDP', 'BFC', 'MAR', 'REU', 'NOR', 'CVL', 'PDL']
