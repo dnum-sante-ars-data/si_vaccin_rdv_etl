@@ -114,7 +114,7 @@ def load_agenda_raw(date=datetime.today().strftime("%Y-%m-%d"), verbose=True) :
             "date_creation", "date_rdv", "id_centre", "nom_centre", "cp_centre",
             "code_departement", "code_region", "region", "motif_rdv",
             "rang_vaccinal", "parcours_rdv", "annee_naissance", "honore", "annule",
-            "operateur","type_vaccin","rdv_cnam"],
+            "operateur","type_vaccin","rdv_cnam","rdv_rappel"],
         dtype=str ,encoding="utf-8")
     df_ret["date_rdv"] = pd.to_datetime(df_ret["date_rdv"], format='%Y-%m-%d', errors='raise')
     if verbose :
@@ -276,6 +276,20 @@ def check_motif_cnam(str_in) :
     else :
         return "false"
 
+# identification du rdv rappel
+# les patterns déclenchant une qualification en rappel sont ici
+def check_motif_rappel(str_in) :
+    if ("RAPPEL" in str_in.upper()) :
+        return "true"
+    elif ("3" in str_in.upper()) :
+        return "true"
+    elif ("IMMUN" in str_in.upper()) :
+        return "true"
+    elif ("TROIS" in str_in.upper()) :
+        return "true"
+    else :
+        return "false"
+
 def norm_agenda(df_in, operateur="maiia") :
     # chargement des utilitaires
     df_dep = pd.read_csv("utils/departement2019.csv",sep=",",dtype="str")
@@ -389,6 +403,8 @@ def norm_agenda(df_in, operateur="maiia") :
     df_ret["motif_rdv"].fillna("NR",inplace=True)
     # affectation du boolean rdv_cnam
     df_ret["rdv_cnam"] = df_ret["motif_rdv"].apply(check_motif_cnam)
+    # affectation du boolean rdv_rappel
+    df_ret["rdv_rappel"] = df_ret["motif_rdv"].apply(check_motif_rappel)
     # cp_centre
     df_ret["cp_centre"].fillna("NR",inplace=True)
     # code_departement
@@ -415,7 +431,8 @@ def norm_agenda(df_in, operateur="maiia") :
         "honore","annule",
         "operateur",
         "type_vaccin",
-        "rdv_cnam"]]
+        "rdv_cnam",
+        "rdv_rappel"]]
     return df_ret
 
 # concatenation des trois flux operateurs
@@ -430,7 +447,8 @@ def concat_operateur_agenda(*df_ops) :
         "honore","annule",
         "operateur",
         "type_vaccin",
-        "rdv_cnam"]]
+        "rdv_cnam",
+        "rdv_rappel"]]
     return df_ret
 
 # ARS
@@ -522,7 +540,8 @@ def aggregate(df_in, date_init="", date=datetime.today().strftime("%Y-%m-%d"), d
         "code_departement", "code_region","region","rang_vaccinal", "operateur","type_vaccin"], 
         as_index=False).agg(
             nb=("cp_centre", "count"),
-            nb_rdv_cnam=("rdv_cnam", lambda x : len(x[x == "true"]))
+            nb_rdv_cnam=("rdv_cnam", lambda x : len(x[x == "true"])),
+            nb_rdv_rappel=("rdv_rappel", lambda x : len(x[x == "true"]))
             )
     if verbose :
         print(" - - - Agrégation à la maille centre terminee")
@@ -530,7 +549,8 @@ def aggregate(df_in, date_init="", date=datetime.today().strftime("%Y-%m-%d"), d
     # aggregation ARS
     df_ret_centre_ars = df_ret.groupby(["code_region", "region", "code_departement", "id_centre", "nom_centre", "rang_vaccinal", "date_rdv","type_vaccin"], as_index=False).agg(
             nb=("nb", "sum"),
-            nb_rdv_cnam=("nb_rdv_cnam", "sum")
+            nb_rdv_cnam=("nb_rdv_cnam", "sum"),
+            nb_rdv_rappel=("nb_rdv_rappel", "sum")
             )
     # pre filtre sur date pour opendata
     if date.weekday() != 4 :
@@ -544,7 +564,8 @@ def aggregate(df_in, date_init="", date=datetime.today().strftime("%Y-%m-%d"), d
     df_ret_centre = df_ret.groupby(["code_region", "region", "code_departement", 
         "id_centre", "nom_centre", "rang_vaccinal", "date_debut_semaine"], as_index=False).agg(
             nb=("nb", "sum"),
-            nb_rdv_cnam=("nb_rdv_cnam", "sum")
+            nb_rdv_cnam=("nb_rdv_cnam", "sum"),
+            nb_rdv_rappel=("nb_rdv_rappel", "sum")
             )
     #agg par departement
     df_ret_dep = df_ret.groupby(["code_region", "region", "code_departement", "rang_vaccinal", "date_debut_semaine"], as_index=False)["nb"].sum()
@@ -556,8 +577,8 @@ def aggregate(df_in, date_init="", date=datetime.today().strftime("%Y-%m-%d"), d
     df_ret_centre_ars.rename(columns={"code_departement" : "departement"},inplace=True)
     df_ret_centre.rename(columns={"code_departement" : "departement"},inplace=True)
     df_ret_dep.rename(columns={"code_departement" : "departement"},inplace=True)
-    df_ret_centre = df_ret_centre[["code_region", "region", "departement", "id_centre", "nom_centre", "rang_vaccinal", "date_debut_semaine", "nb", "nb_rdv_cnam"]]
-    df_ret_centre_ars = df_ret_centre_ars[["code_region", "region", "departement", "id_centre", "nom_centre", "rang_vaccinal","type_vaccin","date_rdv", "nb", "nb_rdv_cnam"]]
+    df_ret_centre = df_ret_centre[["code_region", "region", "departement", "id_centre", "nom_centre", "rang_vaccinal", "date_debut_semaine", "nb", "nb_rdv_cnam", "nb_rdv_rappel"]]
+    df_ret_centre_ars = df_ret_centre_ars[["code_region", "region", "departement", "id_centre", "nom_centre", "rang_vaccinal","type_vaccin","date_rdv", "nb", "nb_rdv_cnam", "nb_rdv_rappel"]]
     df_ret_dep = df_ret_dep[["code_region", "region", "departement", "rang_vaccinal", "date_debut_semaine", "nb"]]
     df_ret_reg = df_ret_reg[["code_region", "region", "rang_vaccinal", "date_debut_semaine", "nb"]]
     df_ret_national = df_ret_national[["rang_vaccinal", "date_debut_semaine", "nb"]]
