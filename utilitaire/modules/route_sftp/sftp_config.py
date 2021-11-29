@@ -16,6 +16,7 @@ from glob import glob
 import ftplib
 from progressbar import AnimatedMarker, Bar, BouncingBar, Counter, ETA, AdaptiveETA, FileTransferSpeed, FormatLabel, Percentage, ProgressBar, ReverseBar, RotatingMarker, SimpleProgress, Timer, UnknownLength
 
+import socket
 
 #
 # FONCTION GENERIQUE
@@ -76,22 +77,34 @@ def post_file(sftp, path_local, path_sftp, verbose=True) :
             + str(path_sftp))
     return
 
-def post_file_ftplib(sftp, path_local, size_path_local, path_sftp, file_to_transfer, verbose=True):
-    with tqdm(unit = 'blocks', unit_scale = True, leave = True, miniters = 1, desc = 'Uploading......', total = size_path_local) as tqdm_instance:
-        sftp.storbinary('STOR ' + path_sftp, file_to_transfer, 2048, callback = lambda sent: tqdm_instance.update(len(sent)))
-        file_to_transfer.close()
-    sftp.abort()
-    sftp.quit()
-    sftp = None
+def post_ftplib_file(sftp, path_local, path_sftp, verbose=True) :
+    if not os.path.isfile(path_local):
+        print (" - - - Erreur :" + str(path_local), " non trouve")
+        return
+    print(" - - - Chargement " + path_local + " ...")
+    #if sftp.lexists(path_sftp) == True :
+        #if verbose :
+            #print(" - - - Suppression de " + path_sftp + " avant rechargement ...")
+        #sftp.remove(path_sftp)
+        #if verbose :
+            #print(" - - - " + path_sftp + " supprime.")
+            #logging.info(path_sftp + " supprime.")
+    size_local_file = os.path.getsize(path_local)
+    with open(path_local, 'rb') as file_to_transfer:
+        with tqdm(unit = 'blocks', unit_scale = True, leave = True, miniters = 1, desc = 'Uploading......', total = size_local_file) as tqdm_instance:        
+            sftp.storbinary('STOR ' + path_sftp, file_to_transfer, 2048, callback = lambda sent: tqdm_instance.update(len(sent)))
+            file_to_transfer.close()
+    #sftp.quit()
+    #sftp = None
     if verbose :
         print(" - - - Transfert de fichier réussi depuis "
             + str(path_local)
             + " vers sftp://"
             + str(path_sftp))
     logging.info("Transfert de fichier réussi depuis "
-        + str(path_local)
-        + " vers sftp://"
-        + str(path_sftp))
+            + str(path_local)
+            + " vers sftp://"
+            + str(path_sftp))
     return
 
 def delete_file(sftp, path_sftp, verbose=True) :
@@ -288,21 +301,27 @@ def publish_agenda_sftp(server_out_config, *l_publication, date=datetime.today()
             post_file(sftp, path_local,path_sftp, verbose=verbose)
     return
 
-def publish_agenda_ftplib_sftp_1_file(server_out_config,path_local, path_sftp, date=datetime.today().strftime("%Y-%m-%d"), verbose=True) :
-    print('--- Lancement de la publication via ftplib')
-    global sftp
-    host = server_out_config["host"]
+
+def publish_ftplib_agenda_sftp(server_out_config, *l_publication, date=datetime.today().strftime("%Y-%m-%d"), verbose=True) :
+    sftp_host = server_out_config["host"]
     username = server_out_config["username"]
     password = server_out_config["password"]
-    sftp = ftplib.FTP(host, username, password)
-    path_local = path_local
-    size_path_local = os.path.getsize(path_local)
-    path_sftp = path_sftp
-    file_to_transfer = open(path_local, 'rb')
-    post_file_ftplib(sftp, path_local, size_path_local, path_sftp, file_to_transfer, verbose=verbose)
-    #sftp.quit()
-    #sftp = None
+    # config pour ne pas checker de clé existante
+    #cnopts = pysftp.CnOpts()
+    #cnopts.hostkeys = None
+    #with pysftp.Connection(host=host, username=username, password=password, port =2222, cnopts=cnopts) as sftp:)
+    with ftplib.FTP(sftp_host, username, password) as sftp:
+        sftp.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        sftp.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 75)
+        sftp.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 60)
+        for publi in list(l_publication) :
+        # publication du fichier brut
+            path_local = publi["path_local"]
+            path_sftp = publi["path_sftp"]
+            post_ftplib_file(sftp, path_local,path_sftp, verbose=verbose)
     return
+
+#sftp.storbinary('STOR ' + path_sftp, file_to_transfer, 2048, callback = lambda sent: tqdm_instance.update(len(sent)))
 
 def clean_agenda_sftp(server_out_config,*l_path_sftp, verbose=True) :
     host = server_out_config["host"]

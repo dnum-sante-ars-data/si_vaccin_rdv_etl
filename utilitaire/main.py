@@ -242,31 +242,38 @@ def publish_agenda_sftp_ars(date = datetime.today().strftime("%Y-%m-%d"), config
     route_sftp.publish_agenda_sftp(server_out_sftp, *publi_region, date=date, verbose=verbose)
     return
 
+global sftp
+
 def publish_agenda_ftplib_sftp_ars(date = datetime.today().strftime("%Y-%m-%d"), config="config/config.json", verbose=True):
     server_out_sftp = route_sftp.read_config_sftp(config,"ATLASANTE SFTP DEPOT")
-    #path_local = "data/agenda/" + date + " - prise_rdv-raw.csv.gz"
-    #path_sftp = "test/" + date + " - prise_rdv-raw.csv.gz"
-    #route_sftp.publish_agenda_ftplib_sftp_1_file(server_out_sftp, path_local, path_sftp, date=date, verbose=verbose)
-    #path_local = "data/agenda/" + date + " - prise_rdv.xlsx"
-    #path_sftp = "test/" + date + " - prise_rdv.xlsx"
-    #route_sftp.publish_agenda_ftplib_sftp_1_file(server_out_sftp, path_local, path_sftp, date=date, verbose=verbose)
-    #path_local = "data/agenda/" + date + " - prise_rdv.csv"
-    #path_sftp = "test/" + date + " - prise_rdv.csv"
-    #route_sftp.publish_agenda_ftplib_sftp_1_file(server_out_sftp, path_local, path_sftp, date=date, verbose=verbose)
-    path_local = "data/agenda/" + date + " - prise_rdv-raw.csv"
-    path_sftp = "test/" + date + " - prise_rdv-raw.csv"
-    route_sftp.publish_agenda_ftplib_sftp_1_file(server_out_sftp, path_local, path_sftp, date=date, verbose=verbose)
     # publication des fichiers ARS
-    L_region = ['HDF', 'ARA', 'IDF', 'GUY', 'OCC', 'NAQ', 'GES', 'PAC', 'COR',
+    L_region = ['HDF', 'ARA', 'IDF', 'GUY', 'OCC', 'NAQ', 'GES', 'PAC', 'COR',   
         'BRE', 'GDP', 'BFC', 'MAR', 'REU', 'NOR', 'CVL', 'PDL']
     publi_region = []
     for region in L_region :
         publi_region.append({
             "path_local" : "data/agenda/ars/" + date + " - prise_rdv_" + region + ".csv",
-            "path_sftp" :"test/prise_rdv_" + region + ".csv"
+            "path_sftp" : "test/prise_rdv_" + region + ".csv"
         })
     publi_region = publi_region
-    route_sftp.publish_agenda_sftp(server_out_sftp, *publi_region, date=date, verbose=verbose)    
+    route_sftp.publish_agenda_sftp(server_out_sftp, *publi_region, date=date, verbose=verbose)
+    publi_alloc = [{
+        "path_local" : "data/agenda/" + date + " - prise_rdv-raw.csv.gz",        
+        "path_sftp" :"test/" +  date + " - prise_rdv-raw.csv.gz"
+        },
+        {
+        "path_local" : "data/agenda/" + date + " - prise_rdv.csv",
+        "path_sftp" :"test/" +  date + " - prise_rdv.csv"
+        },
+        {
+        "path_local" : "data/agenda/" + date + " - prise_rdv.xlsx",
+        "path_sftp" :"test/" +  date + " - prise_rdv.xlsx"
+        },
+        {"path_local" : "data/agenda/" + date + " - prise_rdv-raw.csv",       
+        "path_sftp" :"test/" + date + " - prise_rdv-raw.csv"
+        }]
+    route_sftp.publish_ftplib_agenda_sftp(server_out_sftp, *publi_alloc, date=date, 
+verbose=verbose) 
     return
 
 def publish_agenda_sftp_alloc(date = datetime.today().strftime("%Y-%m-%d"), config="config/config.json", verbose=True) :
