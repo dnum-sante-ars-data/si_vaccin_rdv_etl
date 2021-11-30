@@ -141,6 +141,28 @@ def load_agenda_raw_vm(date=datetime.today().strftime("%Y-%m-%d"), verbose=True)
     logging.info(path_in + " charge.")
     return dd_ret
 
+def load_agenda_raw_chunk(size=1000000, date=datetime.today().strftime("%Y-%m-%d"), verbose=True) :
+    path_in = "data/agenda/" + date + " - prise_rdv-raw.csv"
+    df_ret = pd.read_csv(path_in,
+        sep=",",
+        usecols=[
+            "date_creation", "date_rdv", "id_centre", "nom_centre", "cp_centre",
+            "code_departement", "code_region", "region", "motif_rdv",
+            "rang_vaccinal", "parcours_rdv", "annee_naissance", "honore", "annule",
+            "operateur","type_vaccin","rdv_cnam"],
+        dtype=str ,
+        encoding="utf-8",
+        chunksize=size)
+    #df_ret["date_rdv"] = pd.to_datetime(df_ret["date_rdv"], format='%Y-%m-%d', errors='raise')
+    if verbose :
+        print(" - - - Fichier " + path_in + " charge avec succes.")
+    logging.info(path_in + " charge.")
+    return df_ret
+
+def date_form (df_in):
+    df_ret = df_in
+    df_ret["date_rdv"] = pd.to_datetime(df_ret["date_rdv"], format='%Y-%m-%d', errors='raise')
+    return df_ret
 
 #
 # FILTRAGE LIGNES
@@ -705,6 +727,18 @@ def save_append_agenda(df_in, folder = "data/agenda/", date=datetime.today().str
             mode="a",header=False)
     else :
         df_in.to_csv(path_out, 
+            index=False, na_rep="",sep=",",encoding="utf-8",
+            mode="w",header=True)
+    return
+
+def save_append_agenda_gzip(df_in, folder = "data/agenda/", date=datetime.today().strftime("%Y-%m-%d"),  postfix="-raw") :
+    path_out = folder + date + " - prise_rdv" + str(postfix) + ".csv.gz"
+    if path.isfile(path_out):
+        df_in.to_csv(path_out,
+            index=False, na_rep="",sep=",",encoding="utf-8",
+            mode="a",header=False, compression="gzip")
+    else :
+        df_in.to_csv(path_out,
             index=False, na_rep="",sep=",",encoding="utf-8",
             mode="w",header=True)
     return

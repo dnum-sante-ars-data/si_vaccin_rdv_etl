@@ -37,6 +37,8 @@ def __main__(args) :
             generate_OD(date= args.date, verbose=args.verbose)
         elif args.commande == "process_OD_VM" :
             generate_OD_VM(date=args.date, verbose=args.verbose)
+        elif args.commande == "process_OD_chunk" :
+            generate_OD_chunk(date=args.date, verbose=args.verbose)
         elif args.commande == "control" :
             control_agenda(date= args.date, verbose=args.verbose)
         elif args.commande == "publish_sftp_ars" :
@@ -165,8 +167,11 @@ def generate_OD(date = datetime.today().strftime("%Y-%m-%d"), config="config/con
 
 def generate_OD_VM(date = datetime.today().strftime("%Y-%m-%d"), config="config/config.json", verbose=True) :
     param = agenda.read_config_agenda(config)
+    df_agenda_op_chunk = agenda.load_agenda_raw_chunk(1000000, date=date, verbose=verbose)
+    for chunk in df_agenda_op_chunk :
+        df_agenda_op_process = agenda.date_form(chunk)
+        agenda.save_append_agenda_gzip(df_agenda_op_process, folder = "data/agenda/", date=date,  postfix="-raw")
     df_agenda_op = agenda.load_agenda_raw_vm(date=date, verbose=verbose)
-    agenda.save_agenda_gzip_vm(df_agenda_op, folder = "data/agenda/", date=date, postfix="-raw")
     # creation des JDD OPENDATA et ARS
     if verbose :
         print(" - - Enregistrement des fichiers opendata ...")
@@ -189,6 +194,13 @@ def generate_OD_VM(date = datetime.today().strftime("%Y-%m-%d"), config="config/
     agenda.save_agenda_xlsx_vm(df_centre_ars, folder = "data/agenda/", date=date, postfix="")
     return
 
+def generate_OD_chunk(date = datetime.today().strftime("%Y-%m-%d"), config="config/config.json", verbose=True) :
+    param = agenda.read_config_agenda(config)
+    df_agenda_op_chunk = agenda.load_agenda_raw_chunk(1000000, date=date, verbose=verbose)
+    for chunk in df_agenda_op_chunk :
+        df_agenda_op_process = agenda.date_form(chunk)
+        agenda.save_append_agenda_gzip(df_agenda_op_process, folder = "data/agenda/", date=date,  postfix="-raw")
+    return 
 
 # controle
 
