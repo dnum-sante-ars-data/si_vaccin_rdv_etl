@@ -89,6 +89,9 @@ def post_ftplib_file(sftp, path_local, path_sftp, verbose=True) :
         #if verbose :
             #print(" - - - " + path_sftp + " supprime.")
             #logging.info(path_sftp + " supprime.")
+    list_sftp = sftp.nlst("test/")
+    if path_sftp in list_sftp:
+        sftp.delete(path_sftp)
     size_local_file = os.path.getsize(path_local)
     with open(path_local, 'rb') as file_to_transfer:
         with tqdm(unit = 'blocks', unit_scale = True, leave = True, miniters = 1, desc = 'Uploading......', total = size_local_file) as tqdm_instance:        

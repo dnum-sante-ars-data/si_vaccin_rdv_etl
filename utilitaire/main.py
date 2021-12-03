@@ -281,7 +281,8 @@ def publish_agenda_ftplib_sftp_ars(date = datetime.today().strftime("%Y-%m-%d"),
         "path_local" : "data/agenda/" + date + " - prise_rdv.xlsx",
         "path_sftp" :"test/" +  date + " - prise_rdv.xlsx"
         },
-        {"path_local" : "data/agenda/" + date + " - prise_rdv-raw.csv",       
+        {
+        "path_local" : "data/agenda/" + date + " - prise_rdv-raw.csv",       
         "path_sftp" :"test/" + date + " - prise_rdv-raw.csv"
         }]
     route_sftp.publish_ftplib_agenda_sftp(server_out_sftp, *publi_alloc, date=date, 
