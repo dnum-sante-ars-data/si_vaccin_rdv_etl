@@ -581,7 +581,8 @@ def aggregate(df_in, date_init="", date=datetime.today().strftime("%Y-%m-%d"), d
         "code_departement", "code_region","region","rang_vaccinal", "operateur","type_vaccin"], 
         as_index=False).agg(
             nb=("cp_centre", "count"),
-            nb_rdv_cnam=("rdv_cnam", lambda x : len(x[x == "true"]))
+            nb_rdv_cnam=("rdv_cnam", lambda x : len(x[x == "true"])),
+            nb_rdv_rappel=("rdv_rappel", lambda x : len(x[x == "true"]))           
             )
     if verbose :
         print(" - - - Agrégation à la maille centre terminee")
@@ -589,7 +590,8 @@ def aggregate(df_in, date_init="", date=datetime.today().strftime("%Y-%m-%d"), d
     # aggregation ARS
     df_ret_centre_ars = df_ret.groupby(["code_region", "region", "code_departement", "id_centre", "nom_centre", "rang_vaccinal", "date_rdv","type_vaccin"], as_index=False).agg(
             nb=("nb", "sum"),
-            nb_rdv_cnam=("nb_rdv_cnam", "sum")
+            nb_rdv_cnam=("nb_rdv_cnam", "sum"),
+            nb_rdv_rappel=("nb_rdv_rappel", "sum")
             )
     # pre filtre sur date pour opendata
     if date.weekday() != 4 :
@@ -603,7 +605,8 @@ def aggregate(df_in, date_init="", date=datetime.today().strftime("%Y-%m-%d"), d
     df_ret_centre = df_ret.groupby(["code_region", "region", "code_departement", 
         "id_centre", "nom_centre", "rang_vaccinal", "date_debut_semaine"], as_index=False).agg(
             nb=("nb", "sum"),
-            nb_rdv_cnam=("nb_rdv_cnam", "sum")
+            nb_rdv_cnam=("nb_rdv_cnam", "sum"),
+            nb_rdv_rappel=("nb_rdv_rappel", "sum")
             )
     #agg par departement
     df_ret_dep = df_ret.groupby(["code_region", "region", "code_departement", "rang_vaccinal", "date_debut_semaine"], as_index=False)["nb"].sum()
@@ -615,8 +618,8 @@ def aggregate(df_in, date_init="", date=datetime.today().strftime("%Y-%m-%d"), d
     df_ret_centre_ars.rename(columns={"code_departement" : "departement"},inplace=True)
     df_ret_centre.rename(columns={"code_departement" : "departement"},inplace=True)
     df_ret_dep.rename(columns={"code_departement" : "departement"},inplace=True)
-    df_ret_centre = df_ret_centre[["code_region", "region", "departement", "id_centre", "nom_centre", "rang_vaccinal", "date_debut_semaine", "nb", "nb_rdv_cnam"]]
-    df_ret_centre_ars = df_ret_centre_ars[["code_region", "region", "departement", "id_centre", "nom_centre", "rang_vaccinal","type_vaccin","date_rdv", "nb", "nb_rdv_cnam"]]
+    df_ret_centre = df_ret_centre[["code_region", "region", "departement", "id_centre", "nom_centre", "rang_vaccinal", "date_debut_semaine", "nb", "nb_rdv_cnam", "nb_rdv_rappel"]]
+    df_ret_centre_ars = df_ret_centre_ars[["code_region", "region", "departement", "id_centre", "nom_centre", "rang_vaccinal","type_vaccin","date_rdv", "nb", "nb_rdv_cnam", "nb_rdv_rappel"]]
     df_ret_dep = df_ret_dep[["code_region", "region", "departement", "rang_vaccinal", "date_debut_semaine", "nb"]]
     df_ret_reg = df_ret_reg[["code_region", "region", "rang_vaccinal", "date_debut_semaine", "nb"]]
     df_ret_national = df_ret_national[["rang_vaccinal", "date_debut_semaine", "nb"]]
