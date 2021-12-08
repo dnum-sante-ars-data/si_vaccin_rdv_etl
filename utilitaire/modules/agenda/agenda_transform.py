@@ -445,7 +445,11 @@ def norm_agenda(df_in, operateur="maiia") :
     # affectation du boolean rdv_cnam
     df_ret["rdv_cnam"] = df_ret["motif_rdv"].apply(check_motif_cnam)
     # affectation du boolean rdv_rappel
+<<<<<<< HEAD
     df_ret["rdv_rappel"] = df_ret["motif_rdv"].apply(check_motif_rappel)    
+=======
+    df_ret["rdv_rappel"] = df_ret["motif_rdv"].apply(check_motif_rappel)
+>>>>>>> e22fed7dbdb75c5f65a00337a8fe908a56863856
     # cp_centre
     df_ret["cp_centre"].fillna("NR",inplace=True)
     # code_departement
@@ -581,8 +585,7 @@ def aggregate(df_in, date_init="", date=datetime.today().strftime("%Y-%m-%d"), d
         "code_departement", "code_region","region","rang_vaccinal", "operateur","type_vaccin"], 
         as_index=False).agg(
             nb=("cp_centre", "count"),
-            nb_rdv_cnam=("rdv_cnam", lambda x : len(x[x == "true"])),
-            nb_rdv_rappel=("rdv_rappel", lambda x : len(x[x == "true"]))           
+            nb_rdv_cnam=("rdv_cnam", lambda x : len(x[x == "true"]))
             )
     if verbose :
         print(" - - - Agrégation à la maille centre terminee")
@@ -590,8 +593,7 @@ def aggregate(df_in, date_init="", date=datetime.today().strftime("%Y-%m-%d"), d
     # aggregation ARS
     df_ret_centre_ars = df_ret.groupby(["code_region", "region", "code_departement", "id_centre", "nom_centre", "rang_vaccinal", "date_rdv","type_vaccin"], as_index=False).agg(
             nb=("nb", "sum"),
-            nb_rdv_cnam=("nb_rdv_cnam", "sum"),
-            nb_rdv_rappel=("nb_rdv_rappel", "sum")
+            nb_rdv_cnam=("nb_rdv_cnam", "sum")
             )
     # pre filtre sur date pour opendata
     if date.weekday() != 4 :
@@ -605,8 +607,7 @@ def aggregate(df_in, date_init="", date=datetime.today().strftime("%Y-%m-%d"), d
     df_ret_centre = df_ret.groupby(["code_region", "region", "code_departement", 
         "id_centre", "nom_centre", "rang_vaccinal", "date_debut_semaine"], as_index=False).agg(
             nb=("nb", "sum"),
-            nb_rdv_cnam=("nb_rdv_cnam", "sum"),
-            nb_rdv_rappel=("nb_rdv_rappel", "sum")
+            nb_rdv_cnam=("nb_rdv_cnam", "sum")
             )
     #agg par departement
     df_ret_dep = df_ret.groupby(["code_region", "region", "code_departement", "rang_vaccinal", "date_debut_semaine"], as_index=False)["nb"].sum()
