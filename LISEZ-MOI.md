@@ -5,7 +5,7 @@
 Ce dépôt git contient un utilitaure en ligne de commande permettant d'exécuter certains traitements par lot sur les données VACCSI.
 Pour les données de rendez-vous :
 - le module agenda permet d'importer les données des opérateurs, les reformater et les préparer pour le SI-Pilotage et l'opendata
-- le module stock permet d'importer les données des stocks FLUIDE, les reformater et les préparer pour le SI-Pilotage et l'opendata (non déployé actuellemnt)
+- le module stock qui n'est pas utilisé a été retiré pour alléger et limiter la complexité de l'etl
 
 # Dépendances
 
@@ -43,20 +43,6 @@ Options
 - config : permet de choisir le fichier de config à utiliser
 - date choisit la date maximale pour les imports réalisés
 
-## Integration des fichiers FLUIDE du jour
-
-```console
-python main.py stock_fluide import --config fichier_de_config.json --date AAAA-MM-JJ --verbose true
-```
-
-### Stock DISPOSTOCK (Etablissement de santé)
-
-```console
-python main.py stock_dispostock import --date AAAA-MM-JJ --verbose true
-```
-
-Si le fichier n'est pas présent pour le jour passé en paramètre, le script renvoie une erreur.
-
 ## Transformation des fichiers
 
 Une fois téléchargés depuis les sftp, les fichiers doivent être traités.
@@ -68,11 +54,25 @@ Utiliser l'utilitaire main.py. Le fichier brut digdash est généré dans data/a
 ```console
 python main.py agenda process --config fichier_de_config.json --date AAAA-MM-JJ --verbose true
 ```
-Puis pour générer les aggrégats pour l'OD :
+Puis pour générer les aggrégats pour l'OD et les synthèses :
 
 ```console
 python main.py agenda process_OD --config fichier_de_config.json --date AAAA-MM-JJ --verbose true
 ```
+
+** Alternatives : **
+
+```console
+python main.py agenda process_OD_VM --config fichier_de_config.json --date AAAA-MM-JJ --verbose true
+```
+
+Génération des aggrégats pour l'OD et les synthèses optimisée pour une VM de prod (utilisation de Dask).
+
+```console
+python main.py agenda process_OD_chunk --config fichier_de_config.json --date AAAA-MM-JJ --verbose true
+```
+
+Génération des aggrégats pour l'OD et les synthèses optimisée (sans Dask).
 
 Les fichiers pour l'opendata sont générés dans data/agenda/opendata
 
@@ -102,21 +102,6 @@ Les résultats des contrôles sont affichés si des incohérences apparaissent e
 
 NB : par RDV non-honorés on entend rdv pour lesquels le flag 'annule' est 'false' et le flag honore à 'false' également.
 
-### Stock FLUIDE (plateforme)
-
-## Creation d'un dump des stocks
-
-```console
-python main.py stock_fluide process --config fichier_de_config.json --date AAAA-MM-JJ --verbose true
-```
-
-### Stock DISPOSTOCK (Etablissement Pivots)
-
-## Cration d'un dump des stocks
-
-```console
-python main.py stock_dispostock process --config fichier_de_config.json --date AAAA-MM-JJ --verbose true
-```
 
 
 ## Publication des fichiers
@@ -132,12 +117,6 @@ Nettoyage des fichiers en ligne sur le SFTP ARS :
 
 ```console
 python main.py agenda clean_sftp --config fichier_de_config.json --date AAAA-MM-JJ --verbose true
-```
-
-Publication allocation :
-
-```console
-python main.py agenda publish_sftp_alloc --config fichier_de_config.json --date AAAA-MM-JJ --verbose true
 ```
 
 Publication data.gouv
@@ -178,10 +157,6 @@ Fonctionnalités d'import/export automatique vers les différents serveurs SFTP.
 ### route_data_gouv
 
 Fonctionnalités de publication sur les API Data.gouv
-
-### route_postgre
-
-Binding avec la base de données PostGRE (uniquement stocks).
 
 # Gestion des logs
 

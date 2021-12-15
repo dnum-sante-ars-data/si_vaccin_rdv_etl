@@ -1,7 +1,7 @@
 import json
 import pandas as pd
 from datetime import datetime, timedelta, date
-from os import walk, path
+from os import walk, path, remove
 import re
 import logging
 from tqdm import tqdm
@@ -154,6 +154,25 @@ def load_agenda_raw_chunk(size=1000000, date=datetime.today().strftime("%Y-%m-%d
         encoding="utf-8",
         chunksize=size)
     #df_ret["date_rdv"] = pd.to_datetime(df_ret["date_rdv"], format='%Y-%m-%d', errors='raise')
+    if verbose :
+        print(" - - - Fichier " + path_in + " charge avec succes.")
+    logging.info(path_in + " charge.")
+    return df_ret
+
+def load_agenda_centre_temp(verbose=True, folder = "data/agenda/") :
+    # emplacement des fichiers temps par defaut
+    path_in = folder + "agenda_centre_temp.csv"
+    df_ret = pd.read_csv(path_in,
+        sep=",",
+        usecols=["date_rdv", "id_centre","nom_centre","cp_centre",
+            "code_departement", "code_region","region","rang_vaccinal", "operateur","type_vaccin",
+            "nb","nb_rdv_cnam","nb_rdv_rappel"],
+        dtype=str ,
+        encoding="utf-8")
+    df_ret["date_rdv"] = pd.to_datetime(df_ret["date_rdv"], format='%Y-%m-%d', errors='raise')
+    df_ret["nb"] = df_ret["nb"].apply(int)
+    df_ret["nb_rdv_cnam"] = df_ret["nb_rdv_cnam"].apply(int)
+    df_ret["nb_rdv_rappel"] = df_ret["nb_rdv_rappel"].apply(int)
     if verbose :
         print(" - - - Fichier " + path_in + " charge avec succes.")
     logging.info(path_in + " charge.")
@@ -571,12 +590,6 @@ def aggregate(df_in, date_init="", date=datetime.today().strftime("%Y-%m-%d"), d
     logging.info("Debut agregation")
     if verbose :
         print(" - - - Agrégation à la maille centre ...")
-    """
-    df_ret = df_ret.groupby(["date_rdv", "id_centre","nom_centre","cp_centre",
-        "code_departement", "code_region","region",
-        "motif_rdv","rang_vaccinal", "operateur","type_vaccin"], 
-        as_index=False)["nb"].count()
-    """
     df_ret = df_ret.groupby(["date_rdv", "id_centre","nom_centre","cp_centre",
         "code_departement", "code_region","region","rang_vaccinal", "operateur","type_vaccin"], 
         as_index=False).agg(
@@ -587,6 +600,96 @@ def aggregate(df_in, date_init="", date=datetime.today().strftime("%Y-%m-%d"), d
     if verbose :
         print(" - - - Agrégation à la maille centre terminee")
         print(" - - - Agrégation détaillées ...")
+    # aggregation ARS
+    df_ret_centre_ars = df_ret.groupby(["code_region", "region", "code_departement", "id_centre", "nom_centre", "rang_vaccinal", "date_rdv","type_vaccin"], as_index=False).agg(
+            nb=("nb", "sum"),
+            nb_rdv_cnam=("nb_rdv_cnam", "sum"),
+            nb_rdv_rappel=("nb_rdv_rappel", "sum")
+            )
+    # pre filtre sur date pour opendata
+    if date.weekday() != 4 :
+        print(" - - - Attention, les donnees de la semaine ne sont pas toutes remontees")
+    df_ret = df_ret[
+        (df_ret["date_rdv"] >= date_init - timedelta(days=date_init.weekday())) &
+        (df_ret["date_rdv"] <= date - timedelta(days=date.weekday()) + timedelta(days=duree*7 -1)) ]
+    df_ret["date_debut_semaine"] = df_ret["date_rdv"].apply(lambda x : (x - timedelta(days=x.weekday())).strftime("%Y-%m-%d"))
+    df_ret = df_ret[df_ret["rang_vaccinal"] != "NR"]
+    #agg par centre pour opendata et ARS
+    df_ret_centre = df_ret.groupby(["code_region", "region", "code_departement", 
+        "id_centre", "nom_centre", "rang_vaccinal", "date_debut_semaine"], as_index=False).agg(
+            nb=("nb", "sum"),
+            nb_rdv_cnam=("nb_rdv_cnam", "sum"),
+            nb_rdv_rappel=("nb_rdv_rappel", "sum")
+            )
+    #agg par departement
+    df_ret_dep = df_ret.groupby(["code_region", "region", "code_departement", "rang_vaccinal", "date_debut_semaine"], as_index=False)["nb"].sum()
+    #agg par region
+    df_ret_reg = df_ret.groupby(["code_region", "region", "rang_vaccinal", "date_debut_semaine"], as_index=False)["nb"].sum()
+    # national
+    df_ret_national = df_ret.groupby(["rang_vaccinal", "date_debut_semaine"], as_index=False)["nb"].sum()
+    # remise en forme
+    df_ret_centre_ars.rename(columns={"code_departement" : "departement"},inplace=True)
+    df_ret_centre.rename(columns={"code_departement" : "departement"},inplace=True)
+    df_ret_dep.rename(columns={"code_departement" : "departement"},inplace=True)
+    df_ret_centre = df_ret_centre[["code_region", "region", "departement", "id_centre", "nom_centre", "rang_vaccinal", "date_debut_semaine", "nb", "nb_rdv_cnam", "nb_rdv_rappel"]]
+    df_ret_centre_ars = df_ret_centre_ars[["code_region", "region", "departement", "id_centre", "nom_centre", "rang_vaccinal","type_vaccin","date_rdv", "nb", "nb_rdv_cnam", "nb_rdv_rappel"]]
+    df_ret_dep = df_ret_dep[["code_region", "region", "departement", "rang_vaccinal", "date_debut_semaine", "nb"]]
+    df_ret_reg = df_ret_reg[["code_region", "region", "rang_vaccinal", "date_debut_semaine", "nb"]]
+    df_ret_national = df_ret_national[["rang_vaccinal", "date_debut_semaine", "nb"]]
+    # tri
+    df_ret_centre.sort_values(by=["region","nom_centre","departement","date_debut_semaine","rang_vaccinal"], inplace=True)
+    df_ret_dep.sort_values(by=["departement","region","date_debut_semaine","rang_vaccinal"], inplace=True)
+    df_ret_reg.sort_values(by=["region","date_debut_semaine","rang_vaccinal"], inplace=True)
+    df_ret_national.sort_values(by=["date_debut_semaine", "rang_vaccinal"], inplace=True)
+    #logs et affichage de controle
+    logging.info("Aggregation des fichiers reussie.")
+    print(" - - - Aggrégation des fichiers réussie. Résumé : ")
+    print(df_ret_national)
+    return df_ret_centre, df_ret_dep, df_ret_reg, df_ret_national, df_ret_centre_ars
+
+# Optimisation de la fonction d'aggrégation
+# aggregate_chunk_centre aggrege par centre une tranche
+# agregate_from_centre aggrege a partir de la sortie d'aggregate_chunk_centre les aggregations classiques
+
+def aggregate_chunk_centre(df_in, verbose=True) :
+    df_ret = df_in.copy()
+    # filtrage rdv réel
+    df_ret = df_ret[df_ret["honore"] != "false"]
+    df_ret = df_ret[df_ret["annule"] != "true"]
+    df_ret["nb"] = "1"
+    # pre agrégation
+    if verbose :
+        print(" - - - Aggrégation par tranche avant reconstitution des aggrégats ...")
+    logging.info("Debut agregation tranche")
+    df_ret_chunk_centre = df_ret.groupby(["date_rdv", "id_centre","nom_centre","cp_centre",
+        "code_departement", "code_region","region","rang_vaccinal", "operateur","type_vaccin"], 
+        as_index=False).agg(
+            nb=("cp_centre", "count"),
+            nb_rdv_cnam=("rdv_cnam", lambda x : len(x[x == "true"])),
+            nb_rdv_rappel=("rdv_rappel", lambda x : len(x[x == "true"]))
+            )
+    if verbose :
+        print(" - - - Agrégation de la tranche à la maille centre terminee")
+    return df_ret_chunk_centre
+
+def aggregate_from_centre(df_in, date_init="", date=datetime.today().strftime("%Y-%m-%d"), duree = 4, verbose=True) :
+    # param input
+    duree = int(duree)
+    if date_init == "" :
+        date_init = datetime(2021, 1, 18)
+    date = datetime.strptime(date,"%Y-%m-%d")
+    logging.info("Date de filtrage pour l'opendata : " + str(date))
+    logging.info("Duree de filtrage : " + str(duree))
+    df_ret = df_in.copy()
+    df_ret = df_ret.groupby(["date_rdv", "id_centre","nom_centre","cp_centre",
+        "code_departement", "code_region","region","rang_vaccinal", "operateur","type_vaccin"], 
+        as_index=False).agg(
+            nb=("nb", "sum"),
+            nb_rdv_cnam=("nb_rdv_cnam", "sum"),
+            nb_rdv_rappel=("nb_rdv_rappel", "sum")
+            )
+    if verbose :
+        print(" - - Attention, les donnees de la semaine ne sont pas toutes remontees")
     # aggregation ARS
     df_ret_centre_ars = df_ret.groupby(["code_region", "region", "code_departement", "id_centre", "nom_centre", "rang_vaccinal", "date_rdv","type_vaccin"], as_index=False).agg(
             nb=("nb", "sum"),
@@ -663,12 +766,6 @@ def aggregate_vm(df_in, date_init="", date=datetime.today().strftime("%Y-%m-%d")
     logging.info("Debut agregation")
     if verbose :
         print(" - - - Agrégation à la maille centre ...")
-    """
-    df_ret = df_ret.groupby(["date_rdv", "id_centre","nom_centre","cp_centre",
-        "code_departement", "code_region","region",
-        "motif_rdv","rang_vaccinal", "operateur","type_vaccin"], 
-        as_index=False)["nb"].count()
-    """
     df_ret["nb"] = df_ret["cp_centre"]
     df_ret["nb_rdv_cnam"] = df_ret.apply(lambda row: nb_rdv_cnam(row), axis=1, meta=int)
     df_ret["nb_rdv_rappel"] = df_ret.apply(lambda row: nb_rdv_rappel(row), axis=1, meta=int)
@@ -808,4 +905,26 @@ def save_agenda_xlsx_vm(df_in, folder = "data/agenda/", date=datetime.today().st
     logging.info(path_out + " enregistre.")
     if verbose :
         print(" - - - Enregistrement de " + path_out + " termine.")
+    return
+
+# sauvegarde temporaire des bouts de chunk avant de les reconstituer
+
+def save_append_chunk(df_in, folder = "data/agenda/", postfix="agenda_centre_temp") :
+    path_out = folder + postfix+ ".csv"
+    if path.isfile(path_out):
+        df_in.to_csv(path_out, 
+            index=False, na_rep="",sep=",",encoding="utf-8",
+            mode="a",header=False)
+    else :
+        df_in.to_csv(path_out, 
+            index=False, na_rep="",sep=",",encoding="utf-8",
+            mode="w",header=True)
+    return
+
+def prepare_chunk_run(folder = "data/agenda/", date=datetime.today().strftime("%Y-%m-%d")) :
+    if path.exists(folder + "agenda_centre_temp" + ".csv"):
+        remove(folder + "agenda_centre_temp" + ".csv")
+    if path.exists(folder + date + " - prise_rdv" + "-raw" + ".csv.gz"):
+        remove(folder + date + " - prise_rdv" + "-raw" + ".csv.gz")
+    print(" - - Nettoyage des fichiers temporaires pour les aggrégations terminé.")
     return

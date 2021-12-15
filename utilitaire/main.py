@@ -8,7 +8,7 @@ from tqdm import tqdm
 import logging
 
 # modules custom
-from modules import route_sftp, agenda, route_data_gouv, allocation, route_atlasante, route_postgre, stock, creneaux
+from modules import route_sftp, agenda, route_data_gouv, creneaux
 
 
 
@@ -61,28 +61,6 @@ def __main__(args) :
             generate_creneaux(date= args.date, verbose=args.verbose)
         else :
             print(" - - - Erreur : commande inconnue pour le domaine creneaux. Veuillez sélectionner une commande existante.")
-    # domaine alloc
-    elif args.domaine == "alloc" :
-        if args.commande == "import" :
-            import_alloc(date= args.date, config=args.config, verbose=args.verbose)
-        elif args.commande == "process" :
-            generate_rapp_alloc(date= args.date, verbose=args.verbose)
-        else :
-            print(" - - - Erreur : commande inconnue pour le domaine alloc. Veuillez sélectionner une commande existante.")
-    elif args.domaine == "stock_fluide" :
-        if args.commande == "import" :
-            import_fluide(date= args.date, config=args.config, verbose=args.verbose)
-        if args.commande == "process" :
-            generate_stock_fluide_tot(date= args.date, config=args.config, verbose=args.verbose)
-        else :
-            print(" - - - Erreur : commande inconnue pour le domaine stock_fluide. Veuillez sélectionner une commande existante.")
-    elif args.domaine == "stock_dispostock" :
-        if args.commande == "import" :
-            import_dispostock(date= args.date, config=args.config, verbose=args.verbose)
-        if args.commande == "process" :
-            generate_stock_dispostock_tot(date= args.date, config=args.config, verbose=args.verbose)
-        else :
-            print(" - - - Erreur : commande inconnue pour le domaine stock_dispostock. Veuillez sélectionner une commande existante.")
     return
 
 
@@ -196,10 +174,33 @@ def generate_OD_VM(date = datetime.today().strftime("%Y-%m-%d"), config="config/
 
 def generate_OD_chunk(date = datetime.today().strftime("%Y-%m-%d"), config="config/config.json", verbose=True) :
     param = agenda.read_config_agenda(config)
+    agenda.prepare_chunk_run(date=date)
     df_agenda_op_chunk = agenda.load_agenda_raw_chunk(1000000, date=date, verbose=verbose)
     for chunk in df_agenda_op_chunk :
-        df_agenda_op_process = agenda.date_form(chunk)
-        agenda.save_append_agenda_gzip(df_agenda_op_process, folder = "data/agenda/", date=date,  postfix="-raw")
+        # enregistrement par chunk au format gzip
+        agenda.save_append_agenda_gzip(chunk, folder = "data/agenda/", date=date,  postfix="-raw")
+        # on réalise une aggrégation intermédiaire à la maille centre avant de tout reconstituer
+        df_centre_process = agenda.date_form(chunk)
+        df_centre_process = agenda.aggregate_chunk_centre(df_centre_process)
+        agenda.save_append_chunk(df_centre_process)
+    # creation des JDD OPENDATA et ARS
+    if verbose :
+        print(" - - Enregistrement des fichiers opendata ...")
+    df_agg_tranche = agenda.load_agenda_centre_temp(verbose=verbose)
+    df_centre, df_dep, df_reg, df_national, df_centre_ars = agenda.aggregate_from_centre(df_agg_tranche, date_init= datetime(2021, 1, 18), date=date, duree = param["borne_publication_opendata"], verbose=verbose)
+    L_region = ['HDF', 'ARA', 'IDF', 'GUY', 'OCC', 'NAQ', 'GES', 'PAC', 'COR',
+       'BRE', 'GDP', 'BFC', 'MAR', 'REU', 'NOR', 'CVL', 'PDL']
+    for region in L_region :
+        df_agenda_reg = agenda.filter_raw_reg(df_centre_ars, region)
+        agenda.save_agenda_vm(df_agenda_reg, folder = "data/agenda/ars/", date=date, postfix=("_"+str(region)))
+    #sauvegarde opendata
+    agenda.save_agenda(df_centre, folder = "data/agenda/opendata/", date=date, postfix="_par_centre")
+    agenda.save_agenda(df_dep, folder = "data/agenda/opendata/", date=date, postfix="_par_dep")
+    agenda.save_agenda(df_reg, folder = "data/agenda/opendata/", date=date, postfix="_par_reg")
+    agenda.save_agenda(df_national, folder = "data/agenda/opendata/", date=date, postfix="_national")
+    # sauvegarde ars
+    agenda.save_agenda(df_centre_ars, folder = "data/agenda/", date=date, postfix="")
+    agenda.save_agenda_xlsx(df_centre_ars, folder = "data/agenda/", date=date, postfix="")
     return 
 
 # controle
@@ -332,70 +333,6 @@ def generate_creneaux(date = datetime.today().strftime("%Y-%m-%d"), config="conf
     if verbose :
         print(" - - Enregistrement des fichiers bruts des creneaux ...")
     creneaux.save_creneaux(df_creneaux_op, folder = "data/creneaux/", date=date, postfix="")
-    return
-
-#
-# __ ALLOC ___
-#
-
-def import_alloc(date= datetime.today().strftime("%Y-%m-%d"), config="config/config.json", verbose=True) :
-    ressource_atlasante = route_atlasante.read_config_ressource(config, "alloc")
-    route_atlasante.save_file_atlasante(ressource_atlasante, date=date, verbose=verbose)
-    return
-
-def generate_rapp_alloc(date= datetime.today().strftime("%Y-%m-%d"), verbose=True) :
-    # transformation
-    df_in_agenda = allocation.load_agenda_raw(date , verbose=True)
-    df_in_agenda = allocation.transform_agenda_raw(df_in_agenda)
-    agenda.save_agenda(df_in_agenda, folder = "data/allocation/", date=date, postfix="-hebdo")
-    df_in_alloc = allocation.load_allocation(date , verbose=True)
-    df_in_alloc = allocation.transform_allocation(df_in_alloc)
-    df_rapp_agenda_alloc = allocation.rapprochement(df_in_agenda, df_in_alloc)
-    # sauvegarde
-    allocation.save_rapprochement(df_rapp_agenda_alloc, date=date, verbose=verbose)
-    return
-
-#
-# __ STOCK ___
-#
-
-# FLUIDE
-
-def import_fluide(date= datetime.today().strftime("%Y-%m-%d"), config="config/config.json", verbose=True) :
-    fluide_config = stock.read_config_stock(config)
-    param_config = route_postgre.read_config_database(config, server="LOCAL SERVER")
-    df_fluide_raw = stock.load_fluide(date=date, verbose=verbose)
-    df_stock_plateforme = stock.process_fluide(df_fluide_raw, fluide_config["dic_ratio_ucd"], verbose=verbose)
-    print(df_stock_plateforme)
-    route_postgre.insert_df_stock_plateforme(df_stock_plateforme, host=param_config["host"], user=param_config["username"], password=param_config["password"], verbose =True )
-    stock.save_fluide(df_stock_plateforme, folder = "data/stock/fluide/opendata/", date=date, postfix="-quotidien", verbose=verbose)
-    return
-
-def generate_stock_fluide_tot(date= datetime.today().strftime("%Y-%m-%d"), config="config/config.json", verbose=True) :
-    param_config = route_postgre.read_config_database(config, server="LOCAL SERVER")
-    df_stock_plateforme = route_postgre.fetch_df_stock_plateforme(host=param_config["host"], user=param_config["username"], password=param_config["password"], verbose =verbose)
-    stock.save_fluide(df_stock_plateforme, folder = "data/stock/fluide/opendata/", date=date, postfix="", verbose=verbose)
-    return
-
-# DISPOSTOCK
-
-def import_dispostock(date= datetime.today().strftime("%Y-%m-%d"), config="config/config.json", verbose=True) :
-    param_config = route_postgre.read_config_database(config, server="LOCAL SERVER")
-    df_dispostock_raw = stock.load_dispostock(date=date, verbose=verbose)
-    df_stock_es = stock.process_dispostock(df_dispostock_raw, date=date, verbose=verbose)
-    print(df_stock_es)
-    route_postgre.insert_df_stock_es(df_stock_es, host=param_config["host"], user=param_config["username"], password=param_config["password"], verbose =True )
-    stock.save_dispostock(df_stock_es, folder = "data/stock/dispostock/opendata/", date=date, postfix="_quotidien", verbose=verbose)
-    return
-
-def generate_stock_dispostock_tot(date= datetime.today().strftime("%Y-%m-%d"), config="config/config.json", verbose=True) :
-    param_config = route_postgre.read_config_database(config, server="LOCAL SERVER")
-    df_stock_es = route_postgre.fetch_df_stock_es(host=param_config["host"], user=param_config["username"], password=param_config["password"], verbose =verbose)
-    df_ret_es_finess, df_ret_es_dep, df_ret_es_reg, df_ret_es_national = stock.aggregate_es(df_stock_es, date=date, verbose=verbose)
-    stock.save_dispostock(df_ret_es_finess, folder = "data/stock/dispostock/opendata/", date=date, postfix="_finess", verbose=verbose)
-    stock.save_dispostock(df_ret_es_dep, folder = "data/stock/dispostock/opendata/", date=date, postfix="_dep", verbose=verbose)
-    stock.save_dispostock(df_ret_es_reg, folder = "data/stock/dispostock/opendata/", date=date, postfix="_reg", verbose=verbose)
-    stock.save_dispostock(df_ret_es_national, folder = "data/stock/dispostock/opendata/", date=date, postfix="_national", verbose=verbose)
     return
 
 #
