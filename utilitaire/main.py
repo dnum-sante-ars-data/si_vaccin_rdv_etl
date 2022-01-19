@@ -95,6 +95,9 @@ def generate_agenda_raw(date = datetime.today().strftime("%Y-%m-%d"), config="co
 def process_agenda_raw(operateur, date = datetime.today().strftime("%Y-%m-%d"), config="config/config.json", verbose=True) :
     param = agenda.read_config_agenda(config)
     reader = agenda.load_agenda_op(operateur, 1000000, date=date)
+    # en cas de reader vide (fichier introuvable, pas d'ajout)
+    if not reader :
+        return
     # initialisation constante err
     data_err = {}
     for chunk in reader :

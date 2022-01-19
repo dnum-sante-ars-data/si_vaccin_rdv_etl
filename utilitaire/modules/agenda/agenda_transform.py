@@ -60,14 +60,17 @@ def get_agenda_op_loc(operateur, date=datetime.today().strftime("%Y-%m-%d"), ver
 # chargement par chunck des csv recuperes sur le serveur sftp en fonction de l editeur
 def load_agenda_op(operateur, size=1000000, date=datetime.today().strftime("%Y-%m-%d"), verbose=True) :
     # chemin défini génériquement
-    path_in = get_agenda_op_loc(operateur, date=date, verbose=verbose)
+    try:
+        path_in = get_agenda_op_loc(operateur, date=date, verbose=verbose)
+    except FileNotFoundError :
+        return
     if verbose :
         print(" - - - Chargement " + path_in + " ...")
     if operateur == "maiia" :
         columns_maiia = [
             "date_creation","date_rdv","id_centre","nom_centre","cp_centre",
             "motif_rdv","rang_vaccinal","parcours_rdv",
-            "annee_naissance","honore","annule"]
+            "annee_naissance","honore","annule","type_vaccin"]
         reader = pd.read_csv(path_in,
         sep=",",encoding="utf-8",
         usecols= columns_maiia,
@@ -385,7 +388,14 @@ def norm_agenda(df_in, operateur="maiia") :
     df_ret.loc[df_ret["rang_vaccinal"].str.contains("4", na=False), "rang_vaccinal"] = "4"
     df_ret.loc[~df_ret["rang_vaccinal"].isin(["1","2","3","4","5","6"]), "rang_vaccinal"] = "NR"
     df_ret["rang_vaccinal"].fillna("NR",inplace=True)
-    # type vaccin
+    # 2022/01/19 ajout du parsing du type vaccin
+    # ajout artificiel pfizer pediatrique à partir du motif de rdv
+    df_ret.loc[df_ret["motif_rdv"].str.contains("astrazeneca", case=False, na=False), "type_vaccin"] = "AstraZeneca"
+    df_ret.loc[df_ret["motif_rdv"].str.contains("janssen", case=False, na=False), "type_vaccin"] = "Janssen"
+    df_ret.loc[df_ret["motif_rdv"].str.contains("moderna", case=False, na=False), "type_vaccin"] = "Moderna"
+    df_ret.loc[df_ret["motif_rdv"].str.contains("pfizer", case=False, na=False), "type_vaccin"] = "Pfizer"
+    df_ret.loc[df_ret["motif_rdv"].str.contains("pedia", case=False, na=False), "type_vaccin"] = "Pfizer Pédiatrique"
+    df_ret.loc[df_ret["motif_rdv"].str.contains("pédia", case=False, na=False), "type_vaccin"] = "Pfizer Pédiatrique"
     df_ret["type_vaccin"].fillna("NR",inplace=True)
     # contrôle date
     if operateur == "maiia" :
