@@ -152,18 +152,28 @@ def get_agenda_op_sftp(sftp, operateur, date=datetime.today().strftime("%Y-%m-%d
         pattern_f = "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-"+ str(operateur) + "-rdv.csv$"
     elif operateur == "doctolib" :
         sftp.cwd("doctolib")
-        pattern_f = "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-"+ str(operateur) + "-rdv.csv$"
+        pattern_f = "[0-9][0-9]-[0-9][0-9]-[0-9][0-9][0-9][0-9]"+"_vaccination_appointments.csv$"
     directory_structure = sftp.listdir_attr()
     filenames = list(map(lambda x : x.filename, directory_structure))
     # verification que le pattern correspond à celui du fichier
-    if filenames :
+    if filenames and operateur == "maiia" :
         filenames = [x for x in filenames if re.match(pattern_f, x)]
         filenames = [x for x in filenames if datetime.strptime(x[0:10],"%Y-%m-%d") <= datetime.strptime(date,"%Y-%m-%d")]
+    elif filenames and operateur == "keldoc" :
+        filenames = [x for x in filenames if re.match(pattern_f, x)]
+        filenames = [x for x in filenames if datetime.strptime(x[0:10],"%Y-%m-%d") <= datetime.strptime(date,"%Y-%m-%d")]
+    elif filenames and operateur == "doctolib" :
+        filenames = [x for x in filenames if re.match(pattern_f, x)]
+        filenames = [x for x in filenames if datetime.strptime(x[0:10],"%d-%m-%Y") <= datetime.strptime(date,"%Y-%m-%d")]
     else :
         print(" - - Erreur : aucun fichier operateur en local pour le " + date)
         raise FileNotFoundError
-    if filenames :
+    if filenames and operateur == "maiia" :
         dates = list(map(lambda x : datetime.strptime(x[0:10],"%Y-%m-%d"),filenames))
+    elif filenames and operateur == "keldoc" :
+        dates = list(map(lambda x : datetime.strptime(x[0:10],"%Y-%m-%d"),filenames))
+    elif filenames and operateur == "doctolib" :
+        dates = list(map(lambda x : datetime.strptime(x[0:10],"%d-%m-%Y"),filenames))
     else :
         print(" - - Erreur : aucun fichier operateur en local pour le " + date)
         raise FileNotFoundError
@@ -208,6 +218,14 @@ def save_agenda_op_sftp(operateur, server_in_config, date=datetime.today().strft
             path_sftp = "doctolib/" + file_name_sftp
             path_local = "data/agenda/"+str(operateur) + "/" + file_name_sftp
             get_file(sftp, path_sftp, path_local, verbose)
+            #Normalisation du nom de fichier doctolib
+            parts = path_local.split('-')
+            year = parts[len(parts)-1].split('_')[0]
+            month = parts[len(parts)-2].split('-')[0]
+            parts2 = path_local.split('/')
+            day = parts2[len(parts2)-1].split('-')[0]
+            new_path_local = "data/agenda/" + str(operateur) + "/" + year +"-" + month + "-" + day + "-" + "doctolib" + "-rdv.csv"
+            os.rename(path_local, new_path_local)
     return
 
 # telechargement complet via wget
@@ -247,6 +265,16 @@ def save_wget_agenda_op_sftp(operateur, server_in_config, date=datetime.today().
             cmd = 'wget --directory-prefix='+dst+' --user="'+username+'" --password="'+password+'"  ftp://'+host+'/'+path_sftp+' --progress=bar'
             subprocess.run(cmd, shell=True)
             print(' - Commande "'+cmd+'" exécutée')
+            #Normalisation du nom de fichier doctolib
+            path_local = dst + file_name_sftp
+            parts = path_local.split('-')
+            year = parts[len(parts)-1].split('_')[0]
+            month = parts[len(parts)-2].split('-')[0]
+            parts2 = path_local.split('/')
+            day = parts2[len(parts2)-1].split('-')[0]
+            new_path_local = dst + year +"-" + month + "-" + day + "-" + "doctolib" + "-rdv.csv"
+            os.rename(path_local, new_path_local)
+            print("Nom du fichier Doctolib normalisé.")
     return
 
 # publication sur le serveur sftp ARS
